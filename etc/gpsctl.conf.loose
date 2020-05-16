@@ -9,7 +9,7 @@ verbosity = 0
 # Only one of Beidou and GLONASS can be used at the same time
 # so rather than error out trying to enable both
 # choose which one to use
-prefer beidou to glonass if both enabled = no
+# prefer beidou to glonass if both enabled = no
 
 [NMEA]
 # enabled = true / false or non-boolean = don't care, leave it alone
