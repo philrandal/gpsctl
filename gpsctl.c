@@ -49,7 +49,7 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
-#include <wiringPi.h>
+// #include <wiringPi.h>
 #include <math.h>
 #include "sl_return.h"
 #include "sl_options.h"
@@ -828,6 +828,7 @@ static slReturn  constrainVerbosity(const optionDef_slOptions* defs, const psloC
 #define V3 (CD->verbosity >= 3)
 
 
+/* remove PPS signal test as wiringPi is now deprecates
 // Test for the presence and quality of a 1 Hz signal on GPIO 18 (the PPS signal from the GPS), printing the result.
 #define PPS_PIN 1
 static slReturn actionTestPPS(const optionDef_slOptions* defs, const psloConfig* config) {
@@ -877,7 +878,7 @@ static slReturn actionTestPPS(const optionDef_slOptions* defs, const psloConfig*
 
     return makeOkReturn();
 }
-
+*/
 
 // Autobaud action function, which infers the GPS baud rate by trying to synchronize at various baud rates.
 static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig* config) {
@@ -1274,6 +1275,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             "reset the GPS"
     };
 
+    /* remove as wiringPi now deprecated
     optionDef_slOptions testPpsDef = {
             1, "test", 0, argNone,                                              // max, long, short, arg
             NULL, NULL, 0,                                                      // parser, ptrArg, intArg
@@ -1282,7 +1284,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             NULL,                                                               // argument name
             "test the GPS' PPS signal"
     };
-
+    */
     optionDef_slOptions configureForTimingDef = {
             1, "configure_for_timing", 0, argNone,                              // max, long, short, arg
             NULL, NULL, 0,                                                      // parser, ptrArg, intArg
@@ -1326,7 +1328,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             syncDef,
             newbaudDef,
             nmeaDef,
-            queryDef,
+//            queryDef,
             configureForGalileoDef,
             configureSatellitesDef,
             configureForTimingDef,
@@ -1406,7 +1408,7 @@ int main(int argc, char *argv[]) {
             NULL, NULL,                                         // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
-            "1.13",                                              // version of gpsctl...
+            "1.14",                                              // version of gpsctl...
             exampleText,                                        // usage examples...
             SL_OPTIONS_CONFIG_NORMAL                            // slOptions configuration options...
     };
