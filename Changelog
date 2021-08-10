@@ -1,3 +1,6 @@
+2021-08-10 - Phil Randal - Release 1.14
+    Removed the --test function as that relied on the unsupported wiringPi library and all my attempts to code alternatives were unsuccessful
+
 2020-10-20 - Phil Randal - Release 1.13
     Added After=network-online.target to ublox-init.service
     This gives me reliable baud rate autodetection at startup
