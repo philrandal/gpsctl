@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 1.13</b></h1>
+<h1 align="center"><b>gpsctl 1.14</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
@@ -47,10 +47,7 @@ based on the GPS' notion of time).
 
 ## Dependencies
 The only dependencies *gpsctl* has (other than the standard C library) is on the JSON library
-[cJSON](https://github.com/DaveGamble/cJSON), [iniparser](https://github.com/philrandal/iniparser), and the popular Raspberry Pi I/O library
-[WiringPi](http://wiringpi.com/).  The source for iniparser and cJSON (which have MIT licenses) are incorporated in this project.  
-
-The WiringPi library must be present and linked.
+[cJSON](https://github.com/DaveGamble/cJSON), and [iniparser](https://github.com/philrandal/iniparser). The source for iniparser and cJSON (which have MIT licenses) are incorporated in this project.  
 
 ## Why is *gpsctl*'s code so awful?
 Mainly because this is the first C program the author has written in over 30 years, but also because the author
@@ -89,7 +86,6 @@ has serious deficiencies in aptitude, intelligence, and knowledge (not to mentio
                                         (tries 230400, 115200, 57600, 38400, 19200, 9600)  
             -b, --baud                use specified baud rate  
             -M, --minbaud             minimum baud rate  
-            --test                    test PPS output from GPS  
             -s, --sync                sync mode ascii, nmea, or ubx (default is ubx)  
             -B, --newbaud             set GPS device and serial port to same new baud rate  
             -n, --nmea                turn NMEA output on or off (y/n)  
