@@ -98,7 +98,7 @@ has serious deficiencies in aptitude, intelligence, and knowledge (not to mentio
                                         disable NMEA RMC, VTG, GSA, GSV, GLL, GGA and enable ZDA  
             --save_config             save config to battery-backed RAM  
             -e, --echo                echo NMEA output  
-            --reset                   reset u-blox config to defaults  
+            --reset                   cold-reset u-blox config to defaults  
 
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing
