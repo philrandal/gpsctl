@@ -1322,13 +1322,13 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             autobaudDef,
             baudDef,
             minBaudDef,
-            testPpsDef,
+//            testPpsDef,
 
             // all the above MUST come before those below, or port won't be initialized correctly...
             syncDef,
             newbaudDef,
             nmeaDef,
-//            queryDef,
+            queryDef,
             configureForGalileoDef,
             configureSatellitesDef,
             configureForTimingDef,
