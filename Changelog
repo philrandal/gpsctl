@@ -1,5 +1,5 @@
 2021-08-10 - Phil Randal - Release 1.15
-    Change --reset semantics crom hot start to cold start
+    Change --reset semantics from hot start to cold start
 
 2021-08-10 - Phil Randal - Release 1.14
     Removed the --test function as that relied on the unsupported wiringPi library and all my attempts to code alternatives were unsuccessful
