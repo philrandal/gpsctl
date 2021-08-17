@@ -638,11 +638,11 @@ static slReturn parseMsgHelper(errorInfo_slReturn error, const optionDef_slOptio
 static slReturn parsePort(void* ptrArg, int intArg, const optionDef_slOptions *def, const char *arg, clientData_slOptions *clientData) {
 
     slReturn vsd = verifySerialDevice(arg);
+    clientData->port = arg;
     if (isErrorReturn(vsd))
         return makeErrorFmtMsgReturn(ERR_CAUSE(vsd), "device \"%s\" is not a terminal", arg);
 
     // stuff it away to the given pointer...
-    clientData->port = arg;
     return makeOkReturn();
 }
 
@@ -1113,11 +1113,19 @@ static slReturn  actionQuiet(const optionDef_slOptions* defs, const psloConfig* 
 
 // Setup action function, which opens and configures the serial port.
 static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* config) {
+    if (CD->port == NULL) {
+        CD->port = iniparser_getstring(gpsctlConf, "gpsctl:port", "/dev/serial0");
+        slReturn vsd = verifySerialDevice(CD->port);
+        if (isErrorReturn(vsd)) {
+            printf("Error: device \"%s\" is not a terminal\n", CD->port);
+            exit(EXIT_FAILURE);
+        }
+    }
 
     // first we try opening the device for the port...
     int fdPort = open(CD->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fdPort < 0) {
-        printf("Failed to open serial port: %s\n", strerror(errno));
+        printf("Failed to open serial port (\"%s\"): %s\n", CD->port,strerror(errno));
         exit(1);
     }
     if (V2) printf("Serial port (\"%s\") open...\n", CD->port);
@@ -1377,26 +1385,14 @@ int main(int argc, char *argv[]) {
     clientData.baud = 0;            // triggers actionSetup to keep existing terminal options, including baud rate
     clientData.minBaud = 9600;
     clientData.ubxSynchronized = false;
-
-    // Create dictionary of program options
-    gpsctlConf = dictionary_new(0);
-
-    // prepopulate dictionary with some default settings as above - they'll be overridden by gpsctl.conf entries if they exist
-    iniparser_set(gpsctlConf, "gpsctl", NULL);
-    iniparser_set(gpsctlConf, "gpsctl:port", "/dev/serial0");
+    clientData.port = NULL;
 
     // check if /etc/gpsctl.conf exists, and load it if it does
     if (access(inifile, R_OK) == 0) {
-        gpsctlConf = iniparser_merge(gpsctlConf, inifile);
+        gpsctlConf = iniparser_load(inifile);
         if (gpsctlConf == NULL) {
             exit(EXIT_FAILURE);
         }
-    }
-    clientData.port = iniparser_getstring(gpsctlConf, "gpsctl:port", "/dev/serial0");
-    slReturn vsd = verifySerialDevice(clientData.port);
-    if (isErrorReturn(vsd)) {
-        printf("Error: device \"%s\" is not a terminal\n", clientData.port);
-        exit(EXIT_FAILURE);
     }
     clientData.verbosity  = iniparser_getint(gpsctlConf, "gpsctl:verbosity", 1);
     clientData.syncMethod = iniparser_getint(gpsctlConf, "gpsctl:sync method", syncUBX);
@@ -1408,7 +1404,7 @@ int main(int argc, char *argv[]) {
             NULL, NULL,                                         // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
-            "1.15",                                              // version of gpsctl...
+            "1.16",                                              // version of gpsctl...
             exampleText,                                        // usage examples...
             SL_OPTIONS_CONFIG_NORMAL                            // slOptions configuration options...
     };
