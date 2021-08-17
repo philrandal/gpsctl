@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 1.14</b></h1>
+<h1 align="center"><b>gpsctl 1.16</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
@@ -80,11 +80,11 @@ has serious deficiencies in aptitude, intelligence, and knowledge (not to mentio
 
     gpsctl  -v                        verbosity (e.g. -vv)  
             -q, --quiet               quiet mode  
-            -p, --port                port to use (default is /dev/serial0)  
+            -p, --port                port to use (default is /dev/serial0) - overrides gpsctl.conf value  
             -j, --json                output in JSON format  
             -a, --autobaud            autodetect baud rate of the u-blox module  
                                         (tries 230400, 115200, 57600, 38400, 19200, 9600)  
-            -b, --baud                use specified baud rate  
+            -b, --baud                use specified baud rate
             -M, --minbaud             minimum baud rate  
             -s, --sync                sync mode ascii, nmea, or ubx (default is ubx)  
             -B, --newbaud             set GPS device and serial port to same new baud rate  
