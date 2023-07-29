@@ -140,7 +140,8 @@ static baudTrans validRates[] = {
         {  38400,  B38400 },
         {  57600,  B57600 },
         { 115200, B115200 },
-        { 230400, B230400 }
+        { 230400, B230400 },
+        { 460800, B460800 }
 };
 
 // Translate the given integer baud rate into the constant needed by termios to specify that baud rate.  If the given
@@ -299,10 +300,10 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         return makeErrorMsgReturn( ERR_CAUSE( gsiResp ), "problem getting speed information" );
     int maxMs = (int) max_ll( 4000, si.nsChar * 250 / 1000000 );
 
-    int bauds[] = { 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400,
+    int bauds[] = { 460800, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400,
                     1800, 1200, 600, 300, 200, 150, 134, 110, 75, 50   };
 
-    if( verbosity >= 3 ) printf( "Trying baud rates from 230400 to %d...\n", minBaud );
+    if( verbosity >= 3 ) printf( "Trying baud rates from 460800 to %d...\n", minBaud );
 
     for( int i = 0; (i < ARRAY_SIZE( bauds ) ) && (bauds[i] >= minBaud); i++ ) {
 
@@ -323,5 +324,5 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         }
     }
     printf( "Could not synchronize on any baud rate...\n" );
-    return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 230400 to %d", minBaud );
+    return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 460800 to %d", minBaud );
 }
