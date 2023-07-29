@@ -83,7 +83,7 @@ has serious deficiencies in aptitude, intelligence, and knowledge (not to mentio
             -p, --port                port to use (default is /dev/serial0) - overrides gpsctl.conf value  
             -j, --json                output in JSON format  
             -a, --autobaud            autodetect baud rate of the u-blox module  
-                                        (tries 460800, 230400, 115200, 57600, 38400, 19200, 9600)  
+                                        (tries 921600, 460800, 230400, 115200, 57600, 38400, 19200, 9600)  
             -b, --baud                use specified baud rate
             -M, --minbaud             minimum baud rate  
             -s, --sync                sync mode ascii, nmea, or ubx (default is ubx)  

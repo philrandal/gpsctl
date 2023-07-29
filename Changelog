@@ -1,3 +1,6 @@
+2023-07-29 - Phil Randal - Release 1.18
+    Increase maximun baudrate to 921600
+
 2023-07-29 - Phil Randal - Release 1.17
     Increase maximun baudrate to 460800 (Issue #18)
 
