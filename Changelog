@@ -1,3 +1,6 @@
+2023-09-08 - Phil Randal
+    Updated cJSON to version 1.17.6
+
 2023-07-29 - Phil Randal - Release 1.18
     Increase maximun baudrate to 921600
 
