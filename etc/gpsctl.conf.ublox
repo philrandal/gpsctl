@@ -2,7 +2,7 @@
 # example gpsctl.conf which lists the ublox-8 default settings
 #
 [gpsctl]
-port = /dev/serial0
+port = /dev/ttyAMA0
 # sync method: ASCII = 1, NMEA = 2, UBX = 3
 sync method = 3
 verbosity = 0
