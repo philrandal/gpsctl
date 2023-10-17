@@ -1,3 +1,6 @@
+2023-10-17 - Phil Randal
+    Change default serial device from /dev/serial0 to /dev/ttyAMA0
+
 2023-09-08 - Phil Randal
     Updated cJSON to version 1.17.6
 
