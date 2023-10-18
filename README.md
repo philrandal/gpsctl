@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 1.16</b></h1>
+<h1 align="center"><b>gpsctl 1.19</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
