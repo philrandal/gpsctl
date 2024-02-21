@@ -220,9 +220,13 @@ To view the current u-blox config
 
 It all started when I decided to build a [Raspberry Pi Stratum 1 NTP server](http://www.philrandal.co.uk/blog/archives/2019/04/entry_213.html).
 
-I found the original gpsctl when looking for something to configure my Raspberry Pi plus u-blox GPS to receive Galileo
+I found Tom Dilatush's original gpsctl when looking for something to configure my Raspberry Pi plus u-blox GPS to receive Galileo
 satellite output.  And then I tinkered a bit, tweaking settings, recompiling, tweaking again, and so on.
 
 Hence the idea to use a configuration file to drive it.
 
 Enjoy.
+
+Tom Dilatush (aka slightlyloony on here, slightlyloony1 on Twitter, sadly passed away on February 14th, 2024, from Amyotrophic lateral sclerosis (ALS), also known as motor neurone disease (MND).
+
+If you find this program useful, please consider donating to your local ALS / MND charity.
