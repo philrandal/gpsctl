@@ -227,6 +227,8 @@ Hence the idea to use a configuration file to drive it.
 
 Enjoy.
 
+## In Memoriam
+
 Tom Dilatush (aka slightlyloony on here, slightlyloony1 on Twitter), sadly passed away on February 14th, 2024, from Amyotrophic lateral sclerosis (ALS), also known as motor neurone disease (MND).
 
 If you find this program useful, please consider donating to your local ALS / MND charity.
