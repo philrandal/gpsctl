@@ -1,0 +1,136 @@
+2024-02-28 - Phil Randal
+    Updated cJSON to version 1.17.7
+
+2023-10-17 - Phil Randal - Release 1.19
+    Change default serial device from /dev/serial0 to /dev/ttyAMA0
+
+2023-09-08 - Phil Randal
+    Updated cJSON to version 1.17.6
+
+2023-07-29 - Phil Randal - Release 1.18
+    Increase maximun baudrate to 921600
+
+2023-07-29 - Phil Randal - Release 1.17
+    Increase maximun baudrate to 460800 (Issue #18)
+
+2021-08-17 - Phil Randal - Release 1.16
+    Fix parsing of --port parameter so it now correctly overrides the gpsctl.conf setting
+    
+2021-08-10 - Phil Randal - Release 1.15
+    Change --reset semantics from hot start to cold start
+
+2021-08-10 - Phil Randal - Release 1.14
+    Removed the --test function as that relied on the unsupported wiringPi library and all my attempts to code alternatives were unsuccessful
+
+2020-10-20 - Phil Randal - Release 1.13
+    Added After=network-online.target to ublox-init.service
+    This gives me reliable baud rate autodetection at startup
+    Minor patch to cJSON.c, not needed by us but who knows who borrows what from where
+
+2020-10-18 - Phil Randal - Release 1.12
+    Increased --autobaud synchronisation timeout from 3 to 4 seconds
+
+2020-10-18 - Phil Randal - Release 1.11
+    Increased --autobaud synchronisation timeout from 1.5 to 3 seconds
+
+2020-10-18 - Phil Randal - Release 1.10b
+    Added configurable parameters to gpsctl in ublox-init.service
+    Set parameters in /etc/default/gpstl, e.g.
+        PARAMS=-q --configure_for_timing
+
+2020-09-07 - Phil Randal - Release 1.10
+    Added gpsctl.conf.ublox which matches the ublox config after gpsctl --reset
+    Added NMEA GGA config to gpsctl -Q config output
+
+2020-09-03 - Phil Randal
+    Update to cJSON 1.7.14
+
+2020-07-17 - Phil Randal
+    Fix possible null pointer dereference in iniparser.c
+
+2020-06-21 - Phil Randal - Release 1.9
+    Set configure-rv3028.sh as executable
+    Reduce number of characters from 50 to 25 in baud rate autodetection
+
+2020-06-21 - Phil Randal - Release 1.8
+    Run stty in ublox-init.service to fix startup glitches
+    Add configure-rv3028.sh to configure the RTC on newer Uputronics GPS Hats
+
+2020-05-16 - Phil Randal
+    Update to cJSON 1.7.13
+
+2019-07-20 - Phil Randal - Release 1.7
+    Allow BeiDou and Glonass to co-exist as long as neither GPS nor Galileo are enabled
+
+2019-07-20 - Phil Randal - Release 1.6
+    Add "prefer beidou to glonass if both enabled" option in
+       [gpsctl] config file section.  Defaults to 'no'.
+       So if you accidentally try to enable both, you can
+       specify which one of the two will be enabled
+
+2019-07-15 - Phil Randal - Release 1.5
+    Enable NMEA 4.1 for both Beidou and Galileo
+
+2019-05-25 - Phil Randal - Release 1.4
+    Changed default gpsctl.conf to match original program's apart from
+        C/No threshold reduced to 20 dBHz
+
+2019-05-24 - Phil Randal
+    Reformat gpsctl.c and ublox.c to get rid of irritating whitespace
+    Update to cJSON 1.7.12
+    Added MIT LICENSE file
+
+2019-05-07 - Phil Randal - Release 1.3
+    Full reporting of enabled / disabled NMEA messages
+    Default to NMEA versioning in x.y format
+
+2019-05-07 - Phil Randal
+    Minor bug fixes to iniparser
+    Turn off debug symbols in gpsctl executable
+
+2019-05-06 - Phil Randal
+    Minor change to NMEA version reporting to make it consistent
+
+2019-05-01 - Phil Randal - Release 1.2
+    Fix iniparser config dump code to correctly quote values containing ';' and '#'
+    Allow non boolean option for nmea:enabled to leave current setting undisturbed
+
+2019-05-01 - Phil Randal - Release 1.1
+
+2019-04-29 - Phil Randal
+    Turn xxRMC on by default in the example gpsctl.conf file
+
+2019-04-28 - Phil Randal
+    Replace ciniparser with iniparser (from my own fork)
+
+2019-04-26 - Phil Randal - Release 1.0
+    Add defaults for "verbosity" and "sync method" to gpsctl.conf
+    Both can be overridden on the command line
+    Add nmea enabled option to config file
+
+2019-04-26 - Phil Randal - Release 0.9:
+    Add --satellites option (same as --galileo, which is now deprecated)
+    Force NMEA version 41 or higher if Galileo enabled
+
+2019-04-26 - Phil Randal - Release 0.8:
+    Add enabling / disabling NMEA sentences, timing and navigation engine config parameters to gpsctl.conf
+
+2019-04-25 - Phil Randal - Release 0.7:
+    Add /etc/gpsctl.conf file supporting satellite and nmea version configuration
+
+2019-04-23 - Phil Randal
+    Add ciniparser into the mix for future gpsctl.conf file parsing
+
+2019-04-18 - Phil Randal
+    Refactor some of the code
+    Report Fix Date and time in ISO 8601 format (yyyy-mm-dd hh:mm:ss)
+
+2019-04-17 - Phil Randal - Release 0.6:
+    Updated cJSON from version 1.6.0 to 1.7.11
+
+2019-04-15 - Phil Randal:
+    Added --galileo option to enable Galileo Satellites and NMEA 4.1 separately (implied by --configure_for_timing)
+    Relaxed satellite fix constraints so I could actually get a fix using active GPS antenna
+    Disabled NMEA RMC, VTG, GSA, GSV, GLL, GGA and enabled ZDA for use with NTP driver 20 option 8
+    Fixed parsing of --port option to actually pass the specified port parameter
+    Changed version number to 0.6
