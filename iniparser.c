@@ -474,7 +474,7 @@ long int iniparser_getlongint(const dictionary * d, const char * key, long int n
     const char * str ;
 
     str = iniparser_getstring(d, key, INI_INVALID_KEY);
-    if (str==INI_INVALID_KEY) return notfound ;
+    if (str==NULL || str==INI_INVALID_KEY) return notfound ;
     return strtol(str, NULL, 0);
 }
 
@@ -529,7 +529,7 @@ double iniparser_getdouble(const dictionary * d, const char * key, double notfou
     const char * str ;
 
     str = iniparser_getstring(d, key, INI_INVALID_KEY);
-    if (str==INI_INVALID_KEY) return notfound ;
+    if (str==NULL || str==INI_INVALID_KEY) return notfound ;
     return atof(str);
 }
 
@@ -571,7 +571,7 @@ int iniparser_getboolean(const dictionary * d, const char * key, int notfound)
 
     c = iniparser_getstring(d, key, INI_INVALID_KEY);
     if (!c) return notfound;
-    if (c==INI_INVALID_KEY) return notfound ;
+    if (c==NULL || c==INI_INVALID_KEY) return notfound ;
     ch = tolower(c[0]);
     if (ch=='y' || ch=='t' || ch=='1') {
         ret = 1 ;
