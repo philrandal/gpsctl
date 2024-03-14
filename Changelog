@@ -1,3 +1,6 @@
+2024-03-14 - Phil Randal
+    Synchronise iniparser with upstream plus added boolean on/off values
+
 2024-02-28 - Phil Randal
     Updated cJSON to version 1.17.7
     Start merging upstream iniparser patches
