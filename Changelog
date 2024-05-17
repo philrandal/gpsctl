@@ -1,15 +1,18 @@
+2024-05-17 - Phil Randal
+    Updated cJSON to version 1.7.18
+
 2024-03-14 - Phil Randal
     Synchronise iniparser with upstream plus added boolean on/off values
 
 2024-02-28 - Phil Randal
-    Updated cJSON to version 1.17.7
+    Updated cJSON to version 1.7.17
     Start merging upstream iniparser patches
 
 2023-10-17 - Phil Randal - Release 1.19
     Change default serial device from /dev/serial0 to /dev/ttyAMA0
 
 2023-09-08 - Phil Randal
-    Updated cJSON to version 1.17.6
+    Updated cJSON to version 1.7.16
 
 2023-07-29 - Phil Randal - Release 1.18
     Increase maximun baudrate to 921600
