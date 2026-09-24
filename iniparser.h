@@ -327,6 +327,7 @@ double iniparser_getdouble(const dictionary *d, const char *key,
   - A string starting with 't'
   - A string starting with 'T'
   - A string starting with '1'
+  - A string starting with 'on'
 
   A false boolean is found if one of the following is matched:
 
@@ -335,7 +336,8 @@ double iniparser_getdouble(const dictionary *d, const char *key,
   - A string starting with 'f'
   - A string starting with 'F'
   - A string starting with '0'
-
+  - A string starting with 'of'
+  
   The notfound value returned if no boolean is identified, does not
   necessarily have to be 0 or 1.
  */
