@@ -415,10 +415,11 @@ int iniparser_getboolean(const dictionary *d, const char *key, int notfound)
 
     if (c == NULL || c == INI_INVALID_KEY) return notfound;
 
-    if (c[0] == 'y' || c[0] == 'Y' || c[0] == '1' || c[0] == 't' || c[0] == 'T') {
+    if (c[0] == 'y' || c[0] == 'Y' || c[0] == '1' || c[0] == 't' || c[0] == 'T'
+               || ((c[0] == 'o' || c[0] == 'O') && (c[1] == 'n' || c[1] == 'N'))) {
         ret = 1;
-    } else if (c[0] == 'n' || c[0] == 'N' || c[0] == '0' || c[0] == 'f'
-               || c[0] == 'F') {
+    } else if (c[0] == 'n' || c[0] == 'N' || c[0] == '0' || c[0] == 'f' || c[0] == 'F'
+               || ((c[0] == 'o' || c[0] == 'O') && (c[1] == 'f' || c[1] == 'F'))) {
         ret = 0;
     } else {
         ret = notfound;
