@@ -21,4 +21,4 @@
 /**
  * Version incremented when bugs are fixed in a backward compatible manner.
  */
-#define INIPARSER_VERSION_PATCH 0
+#define INIPARSER_VERSION_PATCH 2
