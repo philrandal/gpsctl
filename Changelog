@@ -1,3 +1,6 @@
+2026-10-27 - Phil Randal - Release 1.22
+    Security fix for cjson.c
+
 2026-10-12 - Phil Randal - Release 1.21
     Rebased iniparser to 4.3.2
 
