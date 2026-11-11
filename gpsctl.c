@@ -298,10 +298,12 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
         printf("Hardware version: %s\n", version.hardware);
         free(version.hardware);
         char **ptr = version.extensions;
-        while ((*ptr) != NULL) {
-            printf("       Extension: %s\n", *ptr);
-            free((*ptr));
-            ptr++;
+        if (ptr) {
+            while ((*ptr) != NULL) {
+                printf("       Extension: %s\n", *ptr);
+                free((*ptr));
+                ptr++;
+            }
         }
     }
 
