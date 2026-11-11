@@ -931,8 +931,8 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
 // Baud action function, which sets the host's port to the specified baud rate.
 static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    if (V2) printf("Setting baud rate to %d...\n", cd->baud);
     clientData_slOptions* cd = config->clientData;
+    if (V2) printf("Setting baud rate to %d...\n", cd->baud);
 
     // now we set the correct options (the specified baud rate, 8 data bits, 1 stop bit, no parity)
     slReturn result = setTermOptions(cd->fdPort, cd->baud, 8, 1, false, false);
@@ -947,8 +947,8 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
 // New baud rate action function, which changes both the U-Blox GPS baud rate and the host baud rate.
 static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    if (V2) printf("Changing baud rate to %d...\n", cd->newbaud);
     clientData_slOptions* cd = config->clientData;
+    if (V2) printf("Changing baud rate to %d...\n", cd->newbaud);
     slReturn resp = ubxChangeBaudRate(cd->fdPort, (unsigned) cd->newbaud, cd->verbosity);
     if (isErrorReturn(resp)) {
         close(cd->fdPort);
