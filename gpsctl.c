@@ -114,6 +114,9 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
 
     bool inLine = false;
     char last[3];
+    last[0] = '\0';
+    last[1] = '\0';
+    last[2] = '\0';
     int cksm = 0;
     long long start = currentTimeMs();
 
