@@ -5,15 +5,18 @@
  *
  * A utility for querying, configuring, and using a U-Blox GPS on Linux.
  *
- * This program was tested ONLY on a Raspberry Pi 3B, running Jessie, with a Uputronics board that uses a
- * U-Blox M8 GPS module.
+ * This program was tested on Raspberry Pi Models 4B and 5, running Trixie,
+ * with Uputronics boards that use a U-Blox M8 GPS module.
  *
  * Created: October 18, 2017
  *  Author: Tom Dilatush <tom@dilatush.com>
  *  Github:
+ *  Author: Phil Randal
+ *  Github: philrandal
  * License: MIT
  *
  * Copyright 2017 Tom Dilatush
+ * Copyright 2026 Phil Randal
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated
  * documentation files (the "Software"), to deal in the Software without restriction, including without limitation
@@ -1415,7 +1418,7 @@ int main(int argc, char *argv[]) {
             NULL, NULL,                                         // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
-            "1.22",                                             // version of gpsctl...
+            "1.23",                                             // version of gpsctl...
             exampleText,                                        // usage examples...
             SL_OPTIONS_CONFIG_NORMAL                            // slOptions configuration options...
     };
