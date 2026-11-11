@@ -928,8 +928,8 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
 // Baud action function, which sets the host's port to the specified baud rate.
 static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    clientData_slOptions* cd = config->clientData;
     if (V2) printf("Setting baud rate to %d...\n", cd->baud);
+    clientData_slOptions* cd = config->clientData;
 
     // now we set the correct options (the specified baud rate, 8 data bits, 1 stop bit, no parity)
     slReturn result = setTermOptions(cd->fdPort, cd->baud, 8, 1, false, false);
@@ -937,7 +937,6 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
         close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
-
     return makeOkReturn();
 }
 
@@ -945,8 +944,8 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
 // New baud rate action function, which changes both the U-Blox GPS baud rate and the host baud rate.
 static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    clientData_slOptions* cd = config->clientData;
     if (V2) printf("Changing baud rate to %d...\n", cd->newbaud);
+    clientData_slOptions* cd = config->clientData;
     slReturn resp = ubxChangeBaudRate(cd->fdPort, (unsigned) cd->newbaud, cd->verbosity);
     if (isErrorReturn(resp)) {
         close(cd->fdPort);
@@ -959,7 +958,8 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
 // Sync action function, which synchronizes serial port receiver with the data stream using the configured method.
 static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    slReturn ssResp = syncSerial(CD->syncMethod, config->clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn ssResp = syncSerial(cd->syncMethod, cd);
     if (isErrorReturn(ssResp))
         return makeErrorMsgReturn(ERR_CAUSE(ssResp), "error while synchronizing on serial data");
 
@@ -974,18 +974,18 @@ static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* co
 // NMEA action function, which turns NMEA data on or off on the U-Blox GPS.
 static slReturn  actionNMEA(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    clientData_slOptions* clientData = config->clientData;
+    clientData_slOptions* cd = config->clientData;
     // If nmea flag is not explicitly 0 or 1 return without touching it
     //   so nmea enabled option 'enabled=statusquo' wouldn't change setting
-    if (clientData->nmea < 0 || clientData->nmea > 1)
+    if (cd->nmea < 0 || cd->nmea > 1)
         return makeOkReturn();
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
-    slReturn resp = ubxSetNMEAData(clientData->fdPort, clientData->verbosity, clientData->nmea);
+    slReturn resp = ubxSetNMEAData(cd->fdPort, cd->verbosity, cd->nmea);
     if (isErrorReturn(resp))
-        return makeErrorFmtMsgReturn(ERR_CAUSE(resp), "failed to turn NMEA data %s", clientData->nmea ? "on" : "off");
+        return makeErrorFmtMsgReturn(ERR_CAUSE(resp), "failed to turn NMEA data %s", cd->nmea ? "on" : "off");
 
     return makeOkReturn();
 }
@@ -994,20 +994,20 @@ static slReturn  actionNMEA(const optionDef_slOptions* defs, const psloConfig* c
 // Query action function, which queries the U-Blox GPS for the specified data.
 static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    clientData_slOptions* clientData = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
     slReturn resp;
-    switch (clientData->queryType) {
+    switch (cd->queryType) {
 
-        case fixQuery:       resp = doFixQuery(clientData); break;
-        case versionQuery:   resp = doVersionQuery(clientData); break;
-        case configQuery:    resp = doConfigQuery(clientData); break;
-        case satelliteQuery: resp = doSatelliteQuery(clientData); break;
+        case fixQuery:       resp = doFixQuery(cd); break;
+        case versionQuery:   resp = doVersionQuery(cd); break;
+        case configQuery:    resp = doConfigQuery(cd); break;
+        case satelliteQuery: resp = doSatelliteQuery(cd); break;
 
-        default: return makeErrorFmtMsgReturn(ERR_ROOT, "invalid query type: %d", clientData->queryType);
+        default: return makeErrorFmtMsgReturn(ERR_ROOT, "invalid query type: %d", cd->queryType);
     }
     if (isErrorReturn(resp))
         return makeErrorMsgReturn(ERR_CAUSE(resp), "problem executing GPS query");
@@ -1019,13 +1019,13 @@ static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* 
 static slReturn  actionSaveConfig(const optionDef_slOptions* defs, const psloConfig* config) {
 
     // make sure we're synchronized...
-    clientData_slOptions* clientData = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
     // save the GPS configuration...
-    slReturn uscResp = ubxSaveConfig(config->clientData->fdPort, config->clientData->verbosity);
+    slReturn uscResp = ubxSaveConfig(cd->fdPort, cd->verbosity);
     if (isErrorReturn(uscResp))
         return makeErrorMsgReturn(ERR_CAUSE(uscResp), "problem saving GPS configuration");
 
@@ -1037,13 +1037,13 @@ static slReturn  actionSaveConfig(const optionDef_slOptions* defs, const psloCon
 static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* config) {
 
     // make sure we're synchronized...
-    clientData_slOptions* clientData = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
     // reset the GPS...
-    slReturn urResp = ubxReset(config->clientData->fdPort, config->clientData->verbosity);
+    slReturn urResp = ubxReset(cd->fdPort, cd->verbosity);
     if (isErrorReturn(urResp))
         return makeErrorMsgReturn(ERR_CAUSE(urResp), "problem resetting the GPS");
 
@@ -1055,13 +1055,13 @@ static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* 
 static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psloConfig* config) {
 
     // make sure we're synchronized...
-    clientData_slOptions* clientData = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
     // configure the GPS...
-    slReturn ucftResp = ubxConfigForTiming(config->clientData->fdPort, config->clientData->verbosity);
+    slReturn ucftResp = ubxConfigForTiming(cd->fdPort, cd->verbosity);
     if (isErrorReturn(ucftResp))
         return makeErrorMsgReturn(ERR_CAUSE(ucftResp), "problem configuring the GPS for timing");
 
@@ -1073,13 +1073,13 @@ static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psl
 static slReturn actionConfigSatellites(const optionDef_slOptions* defs, const psloConfig* config) {
 
     // make sure we're synchronized...
-    clientData_slOptions* clientData = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, clientData);
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
 
     // configure the GPS...
-    slReturn ucftResp = ubxConfigSatellites(config->clientData->fdPort, config->clientData->verbosity);
+    slReturn ucftResp = ubxConfigSatellites(cd->fdPort, cd->verbosity);
     if (isErrorReturn(ucftResp))
         return makeErrorMsgReturn(ERR_CAUSE(ucftResp), "problem configuring the GPS satellites");
 
@@ -1091,13 +1091,14 @@ static slReturn actionConfigSatellites(const optionDef_slOptions* defs, const ps
 static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* config) {
 
     if (V2) printf("Starting echo...\n");
+    clientData_slOptions* cd = config->clientData;
 
     // figure out our timing...
     long long startTime = currentTimeMs();
-    long long maxEchoMS = 1000 * CD->echoSeconds;
+    long long maxEchoMS = 1000 * cd->echoSeconds;
 
-    while ((CD->echoSeconds == 0) || ((currentTimeMs() - startTime) < maxEchoMS)) {
-        slReturn rscResp = readSerialChar(CD->fdPort, 1000);
+    while ((cd->echoSeconds == 0) || ((currentTimeMs() - startTime) < maxEchoMS)) {
+        slReturn rscResp = readSerialChar(cd->fdPort, 1000);
         if (isErrorReturn(rscResp))
             return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read character while echoing");
         if (isWarningReturn(rscResp))
@@ -1114,31 +1115,33 @@ static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* c
 
 // Quiet action function, which simply sets verbosity to zero.
 static slReturn  actionQuiet(const optionDef_slOptions* defs, const psloConfig* config) {
-    config->clientData->verbosity = 0;
+    clientData_slOptions* cd = config->clientData;
+    cd->verbosity = 0;
     return makeOkReturn();
 }
 
 // Setup action function, which opens and configures the serial port.
 static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* config) {
-    if (CD->port == NULL) {
-        CD->port = iniparser_getstring(gpsctlConf, "gpsctl:port", "/dev/serial0");
-        slReturn vsd = verifySerialDevice(CD->port);
+    clientData_slOptions* cd = config->clientData;
+    if (cd->port == NULL) {
+        cd->port = iniparser_getstring(gpsctlConf, "gpsctl:port", "/dev/serial0");
+        slReturn vsd = verifySerialDevice(cd->port);
         if (isErrorReturn(vsd)) {
-            printf("Error: device \"%s\" is not a terminal\n", CD->port);
+            printf("Error: device \"%s\" is not a terminal\n", cd->port);
             exit(EXIT_FAILURE);
         }
     }
 
     // first we try opening the device for the port...
-    int fdPort = open(CD->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    int fdPort = open(cd->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fdPort < 0) {
-        printf("Failed to open serial port (\"%s\"): %s\n", CD->port,strerror(errno));
+        printf("Failed to open serial port (\"%s\"): %s\n", cd->port,strerror(errno));
         exit(1);
     }
-    if (V2) printf("Serial port (\"%s\") open...\n", CD->port);
+    if (V2) printf("Serial port (\"%s\") open...\n", cd->port);
 
     // stuff our file descriptor and return in victory...
-    CD->fdPort = fdPort;
+    cd->fdPort = fdPort;
     if (V2) printf("Serial port open and configured...\n");
 
     // configure NMEA output here using setting derived from the conf file
@@ -1151,7 +1154,8 @@ static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* c
 // Teardown action function, which closes the serial port.
 static slReturn actionTeardown(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    close(CD->fdPort);
+    clientData_slOptions* cd = config->clientData;
+    close(cd->fdPort);
     return makeOkReturn();
 }
 
