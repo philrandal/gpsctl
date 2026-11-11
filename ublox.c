@@ -778,7 +778,7 @@ extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
     if (ne == 0)
         version->extensions = NULL;
     else {
-        version->extensions = safeMalloc((size_t) (sizeof(buf) * (ne + 1));
+        version->extensions = safeMalloc((size_t) (sizeof(buf) * (ne + 1)));
         char** ptr = version->extensions;
         for (int i = 40; i < (int) size_slBuffer(versionMsg.body); i += 30) {
             *ptr = getAllocatedStringCopy(buf + i);
