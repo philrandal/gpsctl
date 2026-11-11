@@ -120,7 +120,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
     // flush any junk we might have in the receiver buffer...
     slReturn frResp = flushRx(fdPort);
     if (isErrorReturn(frResp))
-        makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
+        return makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
 
     // read characters until either we appear to be synchronized or we run out of time...
     while (currentTimeMs() < start + maxTimeMs) {
@@ -242,7 +242,7 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
 
         char *jsonStr = cJSON_PrintUnformatted(root);
         printf("%s\n", jsonStr);
-
+        free(jsonStr);
         cJSON_Delete(root);
     }
     else {
@@ -289,7 +289,7 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
 
         char *jsonStr = cJSON_PrintUnformatted(root);
         printf("%s\n", jsonStr);
-
+        free(jsonStr);
         cJSON_Delete(root);
     }
     else {
@@ -372,7 +372,7 @@ static slReturn doSatelliteQuery(const clientData_slOptions* clientData) {
 
         char *jsonStr = cJSON_PrintUnformatted(root);
         printf("%s\n", jsonStr);
-
+        free(jsonStr);
         cJSON_Delete(root);
     }
     else {
@@ -525,7 +525,7 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
         char *jsonStr = cJSON_PrintUnformatted(root);
         printf("%s\n", jsonStr);
-
+        free(jsonStr);
         cJSON_Delete(root);
     }
     else {
@@ -905,17 +905,19 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     if (V2) printf("Automatically determining baud rate...\n");
 
     // now we set the correct options (the first baud rate, 8 data bits, 1 stop bit, no parity)
-    slReturn result = setTermOptions(CD->fdPort, 921600, 8, 1, false, false);
+    slReturn result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
     if (isErrorReturn(result)) {
-        close(CD->fdPort);
+        close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
 
     // now we do the actual work...
     slReturn abResp = autoBaudRate(cd->fdPort, cd->minBaud, synchronizer, cd->verbosity);
-    if (isErrorReturn(abResp))
-        makeErrorFmtMsgReturn(ERR_CAUSE(abResp), "problem while automatically determining baud rate");
-
+    if (isErrorReturn(abResp)) {
+        close(cd->fdPort);
+        return makeErrorFmtMsgReturn(ERR_CAUSE(abResp), "problem while automatically determining baud rate");
+    }
+        
     // change the client data to reflect the new baud rate...
     cd->baud = cd->newbaud;
 
@@ -926,12 +928,13 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
 // Baud action function, which sets the host's port to the specified baud rate.
 static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
-    if (V2) printf("Setting baud rate to %d...\n", CD->baud);
+    clientData_slOptions* cd = config->clientData;
+    if (V2) printf("Setting baud rate to %d...\n", cd->baud);
 
     // now we set the correct options (the specified baud rate, 8 data bits, 1 stop bit, no parity)
-    slReturn result = setTermOptions(CD->fdPort, CD->baud, 8, 1, false, false);
+    slReturn result = setTermOptions(cd->fdPort, cd->baud, 8, 1, false, false);
     if (isErrorReturn(result)) {
-        close(CD->fdPort);
+        close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
 
@@ -945,9 +948,10 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
     clientData_slOptions* cd = config->clientData;
     if (V2) printf("Changing baud rate to %d...\n", cd->newbaud);
     slReturn resp = ubxChangeBaudRate(cd->fdPort, (unsigned) cd->newbaud, cd->verbosity);
-    if (isErrorReturn(resp))
+    if (isErrorReturn(resp)) {
+        close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(resp), "failed to change baud rate");
-
+    }
     return makeOkReturn();
 }
 
