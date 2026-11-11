@@ -620,17 +620,18 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
 static slReturn parseMsgHelper(errorInfo_slReturn error, const optionDef_slOptions* def, char *pattern, ...) {
 
-    char* resolved;
+    char* resolved = NULL;
 
     // first resolve the pattern we were given...
     va_list args;
     va_start(args, pattern);
-    vasprintf(&resolved, pattern, args);
+    int status = vasprintf(&resolved, pattern, args);
     va_end(args);
-
     // return our bad news...
     slReturn result = makeErrorFmtMsgReturn(error, "option parsing problem: [%s] %s", getName_slOptions(def), resolved);
-    free(resolved);
+    if (status != -1) {
+        free(resolved);
+    }
     return result;
 }
 
