@@ -1,4 +1,7 @@
-2026-11-11 - Phil Randal
+2026-11-12 - Phil Randal and Claude - Release 1.24
+    Various code fixes via Claude AI
+
+2026-11-11 - Phil Randal and Claude AI - Release 1.23
     Fix null pointer dereferences and potential heap overflow (thanks, Claude)
     Refactor clientData references to use consistent pointer name 'cd' instead of 'clientData'
 
