@@ -53,7 +53,10 @@ slReturn makeWarningInfoFmtMsgReturn( void*, const char*, ... );
 #define getReturnInfoBool(x) ((bool)(uintptr_t)getReturnInfo(x))
 #define getReturnInfoInt32(x) ((int32_t)(uintptr_t)getReturnInfo(x))
 #define getReturnInfoUint32(x) ((uint32_t)(uintptr_t)getReturnInfo(x))
-#define getReturnInfoChar(x) ((char)(uintptr_t)getReturnInfo(x))
+// Note that this is deliberately an unsigned char: plain char is signed on some platforms (e.g. x86) and unsigned on
+// others (e.g. ARM), and a signed char would turn bytes 0x80..0xFF (such as the UBX sync byte 0xB5) negative, which
+// callers that use a negative value to mean "no character" would then misinterpret...
+#define getReturnInfoChar(x) ((unsigned char)(uintptr_t)getReturnInfo(x))
 
 #define char2info(x) ((void*)(uintptr_t)(x))
 #define int2info(x) ((void*)(uintptr_t)(x))

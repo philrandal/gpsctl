@@ -278,7 +278,8 @@ static bool cmpUbxType(ubxType a, ubxType b) {
 }
 
 
-// Polls the GPX with the given message, then waits for the response and possibly an ACK/NAK.  The response message
+// Polls the GPX with the given message, then waits for the response and possibly an ACK/NAK.  NOTE: pollUbx takes
+// ownership of pollMsg.body and frees it; callers must NOT free or reuse it afterwards.  The response message
 // body is only allocated on an ok response.
 static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) {
 
@@ -433,7 +434,6 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
         if (isErrorReturn(nmeaResp))
             return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem sending NMEA Version configuration to GPS");
     }
-    free(body);
     free(nmeaMsg.body);
 
     return makeOkReturn();
@@ -587,7 +587,6 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     slReturn suamResp = sendUbxAckedMsg(fdPort, newGnssMsg);
     if (isErrorReturn(suamResp))
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending GNSS configuration to GPS");
-    free(body);
     free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
@@ -637,7 +636,6 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
     slReturn suamResp = sendUbxAckedMsg(fdPort, newTp5Msg);
     if (isErrorReturn(suamResp))
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending time pulse configuration to GPS");
-    free(body);
     free(tp5Msg.body);
 
     return makeOkReturn();
@@ -677,7 +675,6 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     slReturn suamResp = sendUbxAckedMsg(fdPort, newNav5Msg);
     if (isErrorReturn(suamResp))
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending navigation engine configuration to GPS");
-    free(body);
     free(nav5Msg.body);
 
     return makeOkReturn();
@@ -756,6 +753,22 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
 }
 
 
+// Returns a newly allocated, always NUL-terminated copy of the string that starts at the given offset within a
+// message body of the given size.  The string is at most maxLen characters long and never extends past the end of the
+// body, even if the device didn't NUL-terminate it (or sent a body that is too short to contain it at all, in which
+// case the result is an empty string).
+static char* copyBodyString(const char* body, size_t bodySize, size_t offset, size_t maxLen) {
+
+    size_t avail = (offset < bodySize) ? (bodySize - offset) : 0;
+    size_t limit = (avail < maxLen) ? avail : maxLen;
+    size_t len = (limit > 0) ? strnlen(body + offset, limit) : 0;
+    char* result = safeMalloc(len + 1);
+    if (len > 0) memcpy(result, body + offset, len);
+    result[len] = 0;
+    return result;
+}
+
+
 // Fills the ubxVersion structure at the given pointer with information about the GPS's version.
 extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
 
@@ -769,23 +782,27 @@ extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
     // decode the message and print the results...
     char* buf = (char *) buffer_slBuffer(versionMsg.body);
 
-    version->software = getAllocatedStringCopy(buf);
-    version->hardware = getAllocatedStringCopy(buf + 30);
+    // the body comes from the device, so never trust it: software version is 30 bytes, hardware version 10 bytes,
+    // and each extension 30 bytes, none of them guaranteed to be NUL-terminated or even present...
+    size_t bodyLen = size_slBuffer(versionMsg.body);
+    version->software = copyBodyString(buf, bodyLen, 0, 30);
+    version->hardware = copyBodyString(buf, bodyLen, 30, 10);
 
     // calculate the number of extension entries we have...
-    int ne = ((int) size_slBuffer(versionMsg.body) - 40) / 30;
+    // (round up so the count matches the number of loop iterations below, and never go negative)...
+    int bodySize = (int) bodyLen;
+    int ne = (bodySize > 40) ? ((bodySize - 40) + 29) / 30 : 0;
     version->number_of_extensions = ne;
-    if (ne == 0)
-        version->extensions = NULL;
-    else {
-        version->extensions = safeMalloc((size_t) (sizeof(buf) * (ne + 1)));
-        char** ptr = version->extensions;
-        for (int i = 40; i < (int) size_slBuffer(versionMsg.body); i += 30) {
-            *ptr = getAllocatedStringCopy(buf + i);
-            ptr++;
-        }
-        *ptr = NULL;
+
+    // always allocate room for ne pointers PLUS the NULL terminator, even when ne is zero, so that callers that
+    // walk the array until NULL never dereference a NULL array pointer...
+    version->extensions = safeMalloc((size_t) (ne + 1) * sizeof(char*));
+    char** ptr = version->extensions;
+    for (int i = 0; i < ne; i++) {
+        *ptr = copyBodyString(buf, bodyLen, 40 + 30 * (size_t) i, 30);
+        ptr++;
     }
+    *ptr = NULL;
 
     return makeOkReturn();
 }
@@ -995,7 +1012,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     if (isErrorReturn(antResp))
         return makeErrorMsgReturn(ERR_CAUSE(antResp), "problem getting antenna information from GPS");
     uint16_t antMask = get_uint16_slBuffer(antMsg.body, 0);
-    free(body);
     free(antMsg.body);
     config->antPwr          = isBitSet_slBits(antMask, 0);
     config->antShrtDet      = isBitSet_slBits(antMask, 1);
@@ -1021,7 +1037,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
         config->gnss[i].enabled   = (bool)  (get_uint8_slBuffer(gnssMsg.body,  8 + 8 * (size_t)i) & 0x01);
         config->gnss[i].sigConfig =          get_uint8_slBuffer(gnssMsg.body, 10 + 8 * (size_t)i);
     }
-    free(body);
     free(gnssMsg.body);
 
     // get the navigation engine configuration...
@@ -1047,7 +1062,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->cnoThreshDbHz       =            get_uint8_slBuffer(nav5Msg.body, 25);
     config->staticHoldMaxDistM  =            get_uint16_slBuffer(nav5Msg.body, 28);
     config->utcStandard         = (utcType)  get_uint8_slBuffer(nav5Msg.body, 30);
-    free(body);
     free(nav5Msg.body);
 
     // get the time pulse configuration...
@@ -1075,7 +1089,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->alignToTow        = isBitSet_slBits(flags, 5);
     config->polarity          = isBitSet_slBits(flags, 6);
     config->gridUtcTnss       = (timegridType) getBitField_slBits(flags, 0x000000780);
-    free(body);
     free(tp5Msg.body);
 
     // get the fix rate configuration...
@@ -1089,7 +1102,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->measRateMs =                  get_uint16_slBuffer(rateMsg.body, 0);
     config->navRate    =                  get_uint16_slBuffer(rateMsg.body, 2);
     config->timeRef    = (fixTimeRefType) get_uint16_slBuffer(rateMsg.body, 4);
-    free(body);
     free(rateMsg.body);
 
     // get the power mode configuration...
@@ -1103,7 +1115,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->powerSetup        = (powerModeType) get_uint8_slBuffer(pmsMsg.body, 1);
     config->powerIntervalSecs =                 get_uint16_slBuffer(pmsMsg.body, 2);
     config->powerOnTimeSecs   =                 get_uint16_slBuffer(pmsMsg.body, 4);
-    free(body);
     free(pmsMsg.body);
 
     // get the NMEA configuration...
@@ -1121,7 +1132,6 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     if (isErrorReturn(nmeaResp))
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem getting NMEA Version information from GPS");
     config->nmeaVersion        = get_uint8_slBuffer(nmeaMsg.body, 1);
-    free(body);
     free(nmeaMsg.body);
 
     // Get NMEA sentence config

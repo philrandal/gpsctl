@@ -136,8 +136,8 @@ static slReturn errorMessageHelper( errorInfo_slReturn error, bool debug, const 
 
     // then we insert that into our pattern...
     slReturn result = makeErrorFmtMsgReturn( error, "command line options processing error during %s phase: %s.", class, resolved );
-    free( resolved );
     if( debug ) printf( "Options processing error during %s phase: %s.\n", class, resolved );
+    free( resolved );
 
     // return our bad news...
     return result;
@@ -727,9 +727,20 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
                                   getName_slOptions(LAST_OPT_REC.def ));
 
     // return with an error-free response...
+    // Note that ourArgv is a local array in process_slOptions() that disappears when that function returns, so we
+    // must NOT hand back a pointer into it.  Instead we return a freshly allocated array holding the remaining
+    // argument pointers (which themselves point to the caller's original argv strings).  The caller owns both the
+    // args_slOptions and its argv array (if any), and may free() them.
+    int remaining = argc - CUR_ARG_INDEX;
+    if( remaining < 0 ) remaining = 0;
     args_slOptions *args = safeMalloc( sizeof( args_slOptions ));
-    args->argc = argc - CUR_ARG_INDEX;
-    args->argv = &CUR_ARG;
+    args->argc = remaining;
+    args->argv = NULL;
+    if( remaining > 0 ) {
+        args->argv = safeMalloc( sizeof( char* ) * (size_t) remaining );
+        for( int i = 0; i < remaining; i++ )
+            args->argv[i] = *(state->ourArgv + CUR_ARG_INDEX + i);
+    }
     return makeOkInfoReturn( args );
 }
 
@@ -746,6 +757,8 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
 #define EH( result, class )                                                                     \
     if ( isErrorReturn( result )) {                                                             \
         free( (void*) state.optDefs );                                                          \
+        free( args->argv );                                                                     \
+        free( args );                                                                           \
         return errorMessageHelper( ERR_CAUSE( result ), DEBUG, class, "fatal error" );          \
     } else if( isWarningReturn( result )) {                                                     \
         warningMessageHelper( result, class );                                                  \
@@ -785,6 +798,7 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
 
     // save the results of the parse phase for return when we're finished (if successful)...
     args_slOptions *args = getReturnInfo( response );
+    freeReturn( response );  // frees the return record itself; the args it carried (which we now own) are not freed
 
     // when we get here, response.argc is the count of unprocessed arguments pointed to by response.argv...
     if( DEBUG) printf( "Starting individual option parsing phase\n" );

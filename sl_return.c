@@ -185,8 +185,9 @@ extern void printReturn( slReturn value, bool includeCaused, bool includeDebug )
     // a little analysis...
     const char* msg = getReturnMsg( value );
     bool longRec = (((shortRecord*) value)->def & SLRETURN_FIELD_MASK) == SLRETURN_LONG_FORM;
-    errInfo err = ((longRecord*) value)->error;
-    slReturn next = longRec ? err.cause : NULL;
+    errInfo err = NOERR;  // only long-form records have an error block; short-form records are smaller
+    if( longRec ) err = ((longRecord*) value)->error;
+    slReturn next = err.cause;
     bool root = (next == NULL);
 
     // if we're not at the root cause, recurse until we get there...

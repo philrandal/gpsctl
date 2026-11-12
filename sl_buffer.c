@@ -172,9 +172,9 @@ extern uint16_t get_uint16_slBuffer( slBuffer *buffer, size_t offset ) {
     if ((offset + 2) > buffer->size) return 0;
 
     byte *b = buffer->buffer;
-    return (buffer->endiness == LittleEndian) ?
-           b[offset]        | (b[offset + 1] <<  8) | (b[offset + 2] << 16) | (b[offset + 3] << 24 ) :
-          (b[offset] << 24) | (b[offset + 1] << 16) | (b[offset + 2] <<  8) |  b[offset + 3]         ;
+    return (uint16_t) ((buffer->endiness == LittleEndian) ?
+                       (b[offset] | (b[offset + 1] << 8)) :
+                       ((b[offset] << 8) | b[offset + 1]));
 }
 
 
