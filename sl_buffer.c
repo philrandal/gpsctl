@@ -124,8 +124,8 @@ extern uint32_t get_uint32_slBuffer( slBuffer *buffer, size_t offset ) {
 
     byte *b = buffer->buffer;
     return (buffer->endiness == LittleEndian) ?
-           b[offset]        | (b[offset + 1] <<  8) | (b[offset + 2] << 16) | (b[offset + 3] << 24 ) :
-          (b[offset] << 24) | (b[offset + 1] << 16) | (b[offset + 2] <<  8) |  b[offset + 3]         ;
+           (uint32_t) b[offset]        | ((uint32_t) b[offset + 1] <<  8) | ((uint32_t) b[offset + 2] << 16) | ((uint32_t) b[offset + 3] << 24 ) :
+          ((uint32_t) b[offset] << 24) | ((uint32_t) b[offset + 1] << 16) | ((uint32_t) b[offset + 2] <<  8) |  (uint32_t) b[offset + 3]         ;
 }
 
 

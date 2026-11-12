@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <execinfo.h>
 #include <stdio.h>
+#include <limits.h>
 #include <unistd.h>
 #include <stdbool.h>
 #include <fcntl.h>
@@ -68,9 +69,11 @@ extern slReturn verifySerialDevice( const char* deviceName ) {
 
     struct termios termios;
     r = tcgetattr( fd, &termios );
-    if( r != 0 )
+    if( r != 0 ) {
+        close( fd );
         return makeErrorFmtMsgReturn( ERR_ROOT, "can't retrieve terminal attributes for \"%s\": %s", deviceName,
                                      strerror(errno) );
+    }
 
     close( fd );
 
@@ -301,7 +304,8 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
     slReturn gsiResp = getSpeedInfo( fdPort, &si );
     if( isErrorReturn( gsiResp ) )
         return makeErrorMsgReturn( ERR_CAUSE( gsiResp ), "problem getting speed information" );
-    int maxMs = (int) max_ll( 4000, si.nsChar * 250 / 1000000 );
+    long long maxMsLL = max_ll( 4000LL, (long long) si.nsChar * 250 / 1000000 );
+    int maxMs = (maxMsLL > INT_MAX) ? INT_MAX : (int) maxMsLL;
 
     int bauds[] = { 921600, 460800, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400,
                     1800, 1200, 600, 300, 200, 150, 134, 110, 75, 50   };

@@ -50,6 +50,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <limits.h>
 #include <getopt.h>
 #include <string.h>
 #include <fcntl.h>
@@ -184,7 +185,8 @@ static slReturn syncSerial(const syncType type, clientData_slOptions* clientData
     slReturn gsiResp = getSpeedInfo(clientData->fdPort, &si);
     if (isErrorReturn(gsiResp))
         return makeErrorMsgReturn(ERR_CAUSE(gsiResp), "problem getting speed information");
-    int maxMs = (int) max_ll(1500, si.nsChar * 250 / 1000000);
+    long long maxMsLL = max_ll(1500LL, (long long) si.nsChar * 250 / 1000000);
+    int maxMs = (maxMsLL > INT_MAX) ? INT_MAX : (int) maxMsLL;
 
     switch (type) {
         case syncNMEA:  return nmeaBaudRateSynchronizer(clientData->fdPort, maxMs, clientData->verbosity);
@@ -276,6 +278,18 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
 }
 
 
+// Frees the memory allocated by ubxGetVersion().
+static void freeVersionInfo(ubxVersion* version) {
+    free(version->software);
+    free(version->hardware);
+    if (version->extensions) {
+        for (int i = 0; i < version->number_of_extensions; i++)
+            free(version->extensions[i]);
+        free(version->extensions);
+    }
+}
+
+
 // Outputs a version query, in English or JSON.
 static slReturn doVersionQuery(const clientData_slOptions* clientData) {
 
@@ -299,19 +313,17 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
     }
     else {
         printf("Software version: %s\n", version.software);
-        free(version.software);
         printf("Hardware version: %s\n", version.hardware);
-        free(version.hardware);
         char **ptr = version.extensions;
         if (ptr) {
             while ((*ptr) != NULL) {
                 printf("       Extension: %s\n", *ptr);
-                free((*ptr));
                 ptr++;
             }
         }
     }
 
+    freeVersionInfo(&version);
     return makeOkReturn();
 }
 
@@ -437,8 +449,10 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
     ubxConfig config = {};  // zeroes all elements...
     slReturn result = ubxGetConfig(clientData->fdPort, clientData->verbosity, &config);
-    if (isErrorReturn(result))
+    if (isErrorReturn(result)) {
+        free(config.gnss);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining configuration information from GPS");
+    }
 
     if (clientData->json) {
 
@@ -621,6 +635,7 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
     }
 
+    free(config.gnss);
     return makeOkReturn();
 }
 
@@ -1442,6 +1457,9 @@ int main(int argc, char *argv[]) {
     slReturn resp = process_slOptions(argc, (const char **) argv, &config);
 
     bool failed = isErrorReturn(resp);
+    // fetch the unparsed-argument list before releasing the return value...
+    args_slOptions* args = failed ? NULL : (args_slOptions*) getReturnInfo(resp);
+
     if (failed)
         switch (clientData.verbosity) {
             case 0:  printf("Errors occurred!\n"); break;
@@ -1452,6 +1470,13 @@ int main(int argc, char *argv[]) {
         }
 
     freeReturn(resp);
+
+    // release the argument list and option definitions that we allocated...
+    if (args) {
+        free(args->argv);
+        free(args);
+    }
+    free((void*) config.optionDefs);
 
     exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
 }

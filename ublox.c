@@ -185,22 +185,29 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
         // now get the body...
         msg->body = create_slBuffer(length, LittleEndian);
         rubResp = readUbxBytes(fdPort, buffer_slBuffer(msg->body), &count, length, max_ms, startTime, startTime + max_ms - currentTimeMs());
-        if (isErrorReturn(rubResp))
+        if (isErrorReturn(rubResp)) {
+            free(msg->body);
+            msg->body = NULL;
             return makeErrorFmtMsgReturn(ERR_CAUSE(rubResp),
-                                          "couldn't read serial characters while receiving UBX message body (0x%02x/0x%02x, %d bytes)",
+                                          "couldn't read serial characters while receiving UBX message body (0x%02x/0x%02x, %zu bytes)",
                                           type.class, type.id, length);
+        }
         msg->checksum = calcFletcherChecksum(*msg);  // this calculates what the checksum SHOULD be...
         if (count >= length) {
 
             // finally, get the checksum...
             rubResp = readUbxBytes(fdPort, buff, &count, 2, max_ms, startTime, startTime + max_ms - currentTimeMs());
-            if (isErrorReturn(rubResp))
+            if (isErrorReturn(rubResp)) {
+                free(msg->body);
+                msg->body = NULL;
                 return makeErrorMsgReturn(ERR_CAUSE(rubResp), "couldn't read serial characters while receiving UBX message checksum");
+            }
             if (count >= 2) {
                 if ((buff[0] == msg->checksum.ck_a) && (buff[1] == msg->checksum.ck_b))
                     return makeOkReturn();
                 else {
                     free(msg->body);
+                    msg->body = NULL;
                     return makeErrorMsgReturn(ERR_ROOT, "UBX received message with checksum error");
                 }
             }
@@ -300,8 +307,11 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
 
             // get our ack, if our class of messages so requires...
             slReturn ackResp = ubxAckWait(fdPort);
-            if (isErrorReturn(ackResp))
+            if (isErrorReturn(ackResp)) {
+                free(answer->body);
+                answer->body = NULL;
                 return makeErrorMsgReturn(ERR_CAUSE(ackResp), "Problem receiving expected ACK for poll");
+            }
         }
         return makeOkReturn();
     }
@@ -386,6 +396,7 @@ extern slReturn isNMEAmsgEnabled(int fdPort, int verbosity, nmeaMSG messageID) {
     if (isErrorReturn(resp)) return resp;
 
     bool state =  get_uint8_slBuffer(current.body, 3);
+    free(current.body);
     return makeOkInfoReturn(bool2info(state));
 }
 
@@ -406,8 +417,10 @@ extern slReturn ubxEnableNMEAMsg(int fdPort, int verbosity, nmeaMSG messageID, b
 
     // now send it, and wait for our ack...
     slReturn nmeaResp = sendUbxAckedMsg(fdPort, nmeaMsg);
-    if (isErrorReturn(nmeaResp))
+    if (isErrorReturn(nmeaResp)) {
+        free(body);
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "failed to enable /disable NMEA MSG");
+    }
 
     free(body);
 
@@ -433,8 +446,10 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
         // now send it back to the GPS...
         ubxMsg newnmeaMsg = createUbxMsg(nmeaMsg.type, b);
         nmeaResp = sendUbxAckedMsg(fdPort, newnmeaMsg);
-        if (isErrorReturn(nmeaResp))
+        if (isErrorReturn(nmeaResp)) {
+            free(nmeaMsg.body);
             return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem sending NMEA Version configuration to GPS");
+        }
     }
     free(nmeaMsg.body);
 
@@ -587,8 +602,10 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     // now send it back to the GPS...
     ubxMsg newGnssMsg = createUbxMsg(gnssMsg.type, b);  // this recomputes the checksum...
     slReturn suamResp = sendUbxAckedMsg(fdPort, newGnssMsg);
-    if (isErrorReturn(suamResp))
+    if (isErrorReturn(suamResp)) {
+        free(gnssMsg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending GNSS configuration to GPS");
+    }
     free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
@@ -638,8 +655,10 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
     // now send it back to the GPS...
     ubxMsg newTp5Msg = createUbxMsg(tp5Msg.type, b);
     slReturn suamResp = sendUbxAckedMsg(fdPort, newTp5Msg);
-    if (isErrorReturn(suamResp))
+    if (isErrorReturn(suamResp)) {
+        free(tp5Msg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending time pulse configuration to GPS");
+    }
     free(tp5Msg.body);
 
     return makeOkReturn();
@@ -677,8 +696,10 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     // send it back to the GPS...
     ubxMsg newNav5Msg = createUbxMsg(nav5Msg.type, b);
     slReturn suamResp = sendUbxAckedMsg(fdPort, newNav5Msg);
-    if (isErrorReturn(suamResp))
+    if (isErrorReturn(suamResp)) {
+        free(nav5Msg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending navigation engine configuration to GPS");
+    }
     free(nav5Msg.body);
 
     return makeOkReturn();
@@ -740,8 +761,11 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     ubxMsg fixMsg;
     slReturn pollResp = pollUbx(fdPort, createUbxMsg(ut_NAV_PVT, create_slBuffer(0, LittleEndian)), NAV_PVT_MAX_MS, &fixMsg);
     if (isErrorReturn(pollResp)) return pollResp;
-    if (size_slBuffer(fixMsg.body) < NAV_PVT_BODY_SIZE)
-        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected NAV_PVT message body size: %d bytes", size_slBuffer(fixMsg.body));
+    if (size_slBuffer(fixMsg.body) < NAV_PVT_BODY_SIZE) {
+        size_t actualSize = size_slBuffer(fixMsg.body);
+        free(fixMsg.body);
+        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected NAV_PVT message body size: %zu bytes", actualSize);
+    }
 
     // convenience variable...
     slBuffer *body = fixMsg.body;
@@ -771,6 +795,7 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     fix->heading_deg                       = get_int32_slBuffer(body, 64) * 1e-5;
     fix->heading_accuracy_deg              = get_uint32_slBuffer(body, 72) * 1e-5;
     #undef body
+    free(fixMsg.body);
     correctTime(fix);
 
     return makeOkReturn();
@@ -828,6 +853,7 @@ extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
     }
     *ptr = NULL;
 
+    free(versionMsg.body);
     return makeOkReturn();
 }
 
@@ -916,6 +942,7 @@ extern slReturn ubxGetSatellites(int fdPort, int verbosity, ubxSatellites* satel
         s->doCorrUsed        = isBitSet_slBits(flags, 22);
     }
 
+    free(satMsg.body);
     return makeOkReturn();
 }
 
@@ -990,7 +1017,7 @@ extern char* getPowerModeName(powerModeType type) {
         case pmInterval:      return "Interval";
         case pmAggressive1Hz: return "Aggressive (1 Hz)";
         case pmAggressive2Hz: return "Aggressive (2 Hz)";
-        case pmAggressive4Hz: return "Aggressive (3 Hz)";
+        case pmAggressive4Hz: return "Aggressive (4 Hz)";
         case pmInvalid:       return "Invalid";
         default:              return "unknown";
     }
@@ -1021,6 +1048,7 @@ static slReturn isNmeaOn(int fdPort) {
     if (isErrorReturn(resp)) return resp;
 
     bool state =  isBitSet_slBits(get_uint16_slBuffer(current.body, 14), 1);
+    free(current.body);
     return makeOkInfoReturn(bool2info(state));
 }
 
@@ -1211,8 +1239,10 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
         ubxMsg msg = createUbxMsg(type, body);
         ubxMsg ans;
         slReturn result = pollUbx(fdPort, msg, MON_VER_SYNC_MAX_MS, &ans);
-        if (isOkReturn(result))
+        if (isOkReturn(result)) {
+            free(ans.body);
             return makeOkInfoReturn(bool2info(true));
+        }
     }
     return makeOkInfoReturn(bool2info(false));
 }
@@ -1230,6 +1260,7 @@ extern slReturn ubxSaveConfig(int fdPort, int verbosity) {
 
     // now send it, and wait for our ack...
     slReturn submResp = sendUbxAckedMsg(fdPort, saveMsg);
+    free(saveMsgBody);
     if (isErrorReturn(submResp))
         return makeErrorMsgReturn(ERR_CAUSE(submResp), "failed to save GPS configuration");
 
@@ -1271,6 +1302,7 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
     // send out the message to actually make the change...
     if (verbosity >= 3) printf("Sending new configuration to GPS with NMEA data turned %s for the UART...\n", onoff);
     slReturn ackResp = sendUbxAckedMsg(fdPort, createUbxMsg(ut_CFG_PRT, bdy));
+    free(bdy);
     if (isOkReturn(ackResp)) {
         if (verbosity >= 1) printf("Successfully set new configuration to turn NMEA data %s for GPS UART...\n", onoff);
         return makeOkReturn();
@@ -1296,6 +1328,7 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
 
     // send out the message to change the baud rate...
     slReturn sendResp = sendUbxMsg(fdPort, createUbxMsg(ut_CFG_PRT, current.body));
+    free(current.body);
     if (isErrorReturn(sendResp))
         return makeErrorMsgReturn(ERR_CAUSE(sendResp), "Problem sending message to change baud rate");
 
@@ -1318,6 +1351,7 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
         slReturn pollResp = pollUbx(fdPort, repollMsg, CFG_PRT_MAX_MS, &repollResp);
         if (isErrorReturn(pollResp))
             return makeErrorMsgReturn(ERR_CAUSE(pollResp), "Problem on second attempt to verify changed baud rate");
+        free(repollResp.body);
     }
 
     if (verbosity >= 1) printf("Successfully changed baud rate to %d...\n", newBaudRate);
