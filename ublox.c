@@ -112,10 +112,10 @@ static slReturn readUbxBytes(int fdPort, byte *buffer, int *count, size_t max, i
         slReturn rscResp = readSerialChar(fdPort, charWaitMs);
 
         if (isErrorReturn(rscResp))
-            makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
+            return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
 
         if (isWarningReturn(rscResp))
-            makeErrorMsgReturn(ERR_ROOT, "timed out while trying to read UBX message");
+            return makeErrorMsgReturn(ERR_ROOT, "timed out while trying to read UBX message");
 
         int c = getReturnInfoChar(rscResp);
         if (c >= 0) {
@@ -603,7 +603,9 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     }
     // convert to from integer 40, 41, etc to hex 0x40, 0x41
     nmeaver = (nmeaver / 10) * 16 + (nmeaver % 10);
-    ubxConfigNMEAVersion(fdPort, verbosity, nmeaver);
+    slReturn nmeaVerResp = ubxConfigNMEAVersion(fdPort, verbosity, nmeaver);
+    if (isErrorReturn(nmeaVerResp))
+        return makeErrorMsgReturn(ERR_CAUSE(nmeaVerResp), "problem configuring NMEA version");
 
     return makeOkReturn();
 }
@@ -655,7 +657,7 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
 
     // make our changes...
     slBuffer* b = nav5Msg.body;
-    put_uint16_slBuffer(b,  0, 0x0577);  // configure all settings...
+    put_uint16_slBuffer(b,  0, 0x05F7);  // configure all settings (including DGPS/DGNSS)...
     put_uint8_slBuffer(b,  2, iniparser_getint(gpsctlConf, "navigation engine:dynamic model", Stationary));                  // use stationary mode...
     put_uint8_slBuffer(b,  3, iniparser_getint(gpsctlConf, "navigation engine:fix mode", Only3D));                         // use any mode...
     put_uint32_slBuffer(b,  4, (int) (iniparser_getdouble(gpsctlConf, "navigation engine:fixed altitude (2d)", 0) * 100.0)); // fixed altitude for 2D (not used)...
@@ -685,25 +687,45 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
 // Configures the GPS for maximum timing accuracy...
 extern slReturn ubxConfigForTiming(int fdPort, int verbosity) {
 
+    slReturn resp;
+
     // configure the GNSS for GPS, GLONASS, BeiDou, and Galileo, with no SBAS.
-    ubxConfigSatellites(fdPort, verbosity);
+    resp = ubxConfigSatellites(fdPort, verbosity);
+    if (isErrorReturn(resp))
+        return makeErrorMsgReturn(ERR_CAUSE(resp), "problem configuring GNSS satellites for timing");
 
     // configure the time pulse...
-    ubxConfigTimePulse(fdPort, verbosity);
+    resp = ubxConfigTimePulse(fdPort, verbosity);
+    if (isErrorReturn(resp))
+        return makeErrorMsgReturn(ERR_CAUSE(resp), "problem configuring time pulse for timing");
 
     // configure the navigation engine...
-    ubxConfigNavEngine(fdPort, verbosity);
+    resp = ubxConfigNavEngine(fdPort, verbosity);
+    if (isErrorReturn(resp))
+        return makeErrorMsgReturn(ERR_CAUSE(resp), "problem configuring navigation engine for timing");
 
-    // Suppress NMEA output except for ZDA messages
-    ubxEnableNMEAMsg(fdPort, verbosity, GGA, iniparser_getboolean(gpsctlConf, "nmea:gga", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, GLL, iniparser_getboolean(gpsctlConf, "nmea:gll", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, GSA, iniparser_getboolean(gpsctlConf, "nmea:gsa", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, GSV, iniparser_getboolean(gpsctlConf, "nmea:gsv", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, RMC, iniparser_getboolean(gpsctlConf, "nmea:rmc", true));
-    ubxEnableNMEAMsg(fdPort, verbosity, VTG, iniparser_getboolean(gpsctlConf, "nmea:vtg", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, GRS, iniparser_getboolean(gpsctlConf, "nmea:grs", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, GST, iniparser_getboolean(gpsctlConf, "nmea:gst", false));
-    ubxEnableNMEAMsg(fdPort, verbosity, ZDA, iniparser_getboolean(gpsctlConf, "nmea:zda", true));
+    // Suppress NMEA output except for the messages enabled in gpsctl.conf...
+    struct {
+        nmeaMSG id;
+        const char *key;
+        bool def;
+    } nmeaMsgs[] = {
+        { GGA, "nmea:gga", false },
+        { GLL, "nmea:gll", false },
+        { GSA, "nmea:gsa", false },
+        { GSV, "nmea:gsv", false },
+        { RMC, "nmea:rmc", true  },
+        { VTG, "nmea:vtg", false },
+        { GRS, "nmea:grs", false },
+        { GST, "nmea:gst", false },
+        { ZDA, "nmea:zda", true  },
+    };
+    for (size_t i = 0; i < sizeof(nmeaMsgs) / sizeof(nmeaMsgs[0]); i++) {
+        resp = ubxEnableNMEAMsg(fdPort, verbosity, nmeaMsgs[i].id,
+                                iniparser_getboolean(gpsctlConf, nmeaMsgs[i].key, nmeaMsgs[i].def));
+        if (isErrorReturn(resp))
+            return makeErrorMsgReturn(ERR_CAUSE(resp), "problem configuring NMEA message output for timing");
+    }
 
     return makeOkReturn();
 }
@@ -874,7 +896,7 @@ extern slReturn ubxGetSatellites(int fdPort, int verbosity, ubxSatellites* satel
         s->cno                  = get_uint8_slBuffer(b, o + 2);
         s->elevation            = get_int8_slBuffer(b, o + 3);
         s->azimuth              = get_int16_slBuffer(b, o + 4);
-        s->pseudoRangeResidualM = get_int8_slBuffer(b, o + 6) * 0.1;
+        s->pseudoRangeResidualM = get_int16_slBuffer(b, o + 6) * 0.1;
 
         uint32_t flags       = get_uint32_slBuffer(b, o + 8);
         s->signalQuality     = (signalQuality) min_i((int) getBitField_slBits(flags, 0x07), 5);
@@ -1178,7 +1200,7 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
     // flush any junk we might have in the receiver buffer...
     slReturn frResp = flushRx(fdPort);
     if (isErrorReturn(frResp))
-        makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
+        return makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
 
     // read characters until either we appear to be synchronized or we run out of time...
     while (currentTimeMs() < start + maxTimeMs) {

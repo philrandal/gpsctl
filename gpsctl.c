@@ -118,7 +118,7 @@ static slReturn setSyncMethod(const char* arg, clientData_slOptions* clientData)
 static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
 
     bool inLine = false;
-    char last[3] = {0};
+    unsigned char last[3] = {0};
     int cksm = 0;
     long long start = currentTimeMs();
 
@@ -136,7 +136,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         if (isWarningReturn(rscResp))
             return makeOkInfoReturn(bool2info(false));
 
-        char c = getReturnInfoChar(rscResp);
+        unsigned char c = getReturnInfoChar(rscResp);
         if (inLine) {
             if ((c == '\r') || (c == '\n')) {
                 if (last[0] == '*') {
@@ -923,8 +923,8 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         return makeErrorFmtMsgReturn(ERR_CAUSE(abResp), "problem while automatically determining baud rate");
     }
         
-    // change the client data to reflect the new baud rate...
-    cd->baud = cd->newbaud;
+    // change the client data to reflect the detected baud rate...
+    cd->baud = getReturnInfoInt32(abResp);
 
     return makeOkReturn();
 }
@@ -968,7 +968,7 @@ static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* co
     if (isErrorReturn(ssResp))
         return makeErrorMsgReturn(ERR_CAUSE(ssResp), "error while synchronizing on serial data");
 
-    bool success = getReturnInfoChar(ssResp);
+    bool success = getReturnInfoBool(ssResp);
     if (success)
         return makeOkReturn();
     else
@@ -976,23 +976,37 @@ static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* co
 }
 
 
-// NMEA action function, which turns NMEA data on or off on the U-Blox GPS.
-static slReturn  actionNMEA(const optionDef_slOptions* defs, const psloConfig* config) {
-
-    clientData_slOptions* cd = config->clientData;
+// Applies the NMEA on/off setting derived from the configuration file (or from -n), if one was
+// given. The GPS can only be configured once the UBX link is usable, so this must not be called
+// before the port has been synchronized (in particular, not from actionSetup).
+static slReturn applyNMEASetting(clientData_slOptions* cd) {
     // If nmea flag is not explicitly 0 or 1 return without touching it
     //   so nmea enabled option 'enabled=statusquo' wouldn't change setting
     if (cd->nmea < 0 || cd->nmea > 1)
         return makeOkReturn();
-    slReturn usResp = syncSerial(syncUBX, cd);
-    if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
-
     slReturn resp = ubxSetNMEAData(cd->fdPort, cd->verbosity, cd->nmea);
     if (isErrorReturn(resp))
         return makeErrorFmtMsgReturn(ERR_CAUSE(resp), "failed to turn NMEA data %s", cd->nmea ? "on" : "off");
-
     return makeOkReturn();
+}
+
+
+// Synchronizes with the GPS and, once the link is usable, applies the configured NMEA setting.
+// A timeout is reported by syncSerial() as Ok with a false info value, so that case is treated
+// as an error here rather than falling through to send commands over an unusable link.
+static slReturn syncAndApplyNMEA(clientData_slOptions* cd) {
+    slReturn usResp = syncSerial(syncUBX, cd);
+    if (isErrorReturn(usResp))
+        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+    if (!getReturnInfoBool(usResp))
+        return makeErrorMsgReturn(ERR_ROOT, "could not synchronize UBX protocol with GPS");
+    return applyNMEASetting(cd);
+}
+
+
+// NMEA action function, which turns NMEA data on or off on the U-Blox GPS.
+static slReturn  actionNMEA(const optionDef_slOptions* defs, const psloConfig* config) {
+    return syncAndApplyNMEA(config->clientData);
 }
 
 
@@ -1000,9 +1014,9 @@ static slReturn  actionNMEA(const optionDef_slOptions* defs, const psloConfig* c
 static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* config) {
 
     clientData_slOptions* cd = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, cd);
+    slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+        return usResp;
 
     slReturn resp;
     switch (cd->queryType) {
@@ -1025,9 +1039,9 @@ static slReturn  actionSaveConfig(const optionDef_slOptions* defs, const psloCon
 
     // make sure we're synchronized...
     clientData_slOptions* cd = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, cd);
+    slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+        return usResp;
 
     // save the GPS configuration...
     slReturn uscResp = ubxSaveConfig(cd->fdPort, cd->verbosity);
@@ -1043,9 +1057,9 @@ static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* 
 
     // make sure we're synchronized...
     clientData_slOptions* cd = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, cd);
+    slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+        return usResp;
 
     // reset the GPS...
     slReturn urResp = ubxReset(cd->fdPort, cd->verbosity);
@@ -1061,9 +1075,9 @@ static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psl
 
     // make sure we're synchronized...
     clientData_slOptions* cd = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, cd);
+    slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+        return usResp;
 
     // configure the GPS...
     slReturn ucftResp = ubxConfigForTiming(cd->fdPort, cd->verbosity);
@@ -1079,9 +1093,9 @@ static slReturn actionConfigSatellites(const optionDef_slOptions* defs, const ps
 
     // make sure we're synchronized...
     clientData_slOptions* cd = config->clientData;
-    slReturn usResp = syncSerial(syncUBX, cd);
+    slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
-        return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
+        return usResp;
 
     // configure the GPS...
     slReturn ucftResp = ubxConfigSatellites(cd->fdPort, cd->verbosity);
@@ -1149,9 +1163,9 @@ static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* c
     cd->fdPort = fdPort;
     if (V2) printf("Serial port open and configured...\n");
 
-    // configure NMEA output here using setting derived from the conf file
-    // it may be reconfigured by the -n or --nmea commandline parameters
-    actionNMEA(defs, config);
+    // NOTE: NMEA configuration is deliberately not applied here. This runs before any baud
+    // rate or autobaud option, so the UBX link is not yet usable. It is applied by the
+    // individual actions once synchronization has succeeded.
     return makeOkReturn();
 }
 
@@ -1427,7 +1441,8 @@ int main(int argc, char *argv[]) {
 
     slReturn resp = process_slOptions(argc, (const char **) argv, &config);
 
-    if (isErrorReturn(resp))
+    bool failed = isErrorReturn(resp);
+    if (failed)
         switch (clientData.verbosity) {
             case 0:  printf("Errors occurred!\n"); break;
             case 1:  printReturn(resp, false, false); break;
@@ -1438,5 +1453,5 @@ int main(int argc, char *argv[]) {
 
     freeReturn(resp);
 
-    exit(EXIT_SUCCESS);
+    exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
 }

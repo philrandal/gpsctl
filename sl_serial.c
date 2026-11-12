@@ -28,14 +28,16 @@
 // Returns speed information for the given port.
 extern slReturn getSpeedInfo( int fdPort, speedInfo* result ) {
     struct termios options;
-    tcgetattr( fdPort, &options );
+    if( tcgetattr( fdPort, &options ) != 0 )
+        return makeErrorMsgReturn( ERR_ROOT, "could not retrieve terminal attributes" );
     slReturn brResp = getBaudRate((int) cfgetispeed( &options ));
     if( isErrorReturn( brResp ) )
         return makeErrorMsgReturn( ERR_CAUSE( brResp ), "could not get baud rate" );
     result->baudRate =  getReturnInfoInt32( brResp );
     result->nsBit = 1000000000 / result->baudRate;
     int stopBits = (options.c_cflag & CSTOPB) ? 2 : 1;
-    int dataBits = (int) getBitField_slBits( options.c_cflag, CSIZE );
+    // CSIZE is 0..3 for CS5..CS8, so add 5 to get the actual number of data bits...
+    int dataBits = (int) getBitField_slBits( options.c_cflag, CSIZE ) + 5;
     int bits = stopBits + dataBits + 1;  // the +1 is for the ever-present start bit...
     result->nsChar = bits * result->nsBit;
     return makeOkReturn();
@@ -262,7 +264,7 @@ extern slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbos
     // flush any junk we might have in the receiver buffer...
     slReturn frResp = flushRx( fdPort );
     if( isErrorReturn( frResp ) )
-        makeErrorMsgReturn( ERR_CAUSE( frResp ), "could not flush receiver prior to synchronization" );
+        return makeErrorMsgReturn( ERR_CAUSE( frResp ), "could not flush receiver prior to synchronization" );
 
     // read characters until either we appear to be synchronized or we run out of time...
     while( currentTimeMs() < start + maxTimeMs ) {
