@@ -1,5 +1,6 @@
 2026-11-12 - Phil Randal and Claude - Release 1.24
-    Various code fixes via Claude AI
+    Various double free, buffer overflow, null pointer dereference fixes, etc via Claude AI
+    Fix ubxReset parameters (Claude AI)
 
 2026-11-11 - Phil Randal and Claude AI - Release 1.23
     Fix null pointer dereferences and potential heap overflow (thanks, Claude)
