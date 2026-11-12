@@ -214,7 +214,7 @@ static slReturn validateConfig( const psloConfig *config ) {
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has a maxCount out of range %d",
                                        getName_slOptions( curDef ), curDef->maxCount );
         if( strempty( curDef->helpMsg ))
-            return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%'s has no help message specified",
+            return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has no help message specified",
                                        getName_slOptions( curDef ));
         if((curDef->arg != argNone) && strempty( curDef->argName ))
             return errorMessageHelper(ERR_ROOT, debug, "validation",

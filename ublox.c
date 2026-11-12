@@ -213,6 +213,7 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
             }
         }
         free(msg->body);
+        msg->body = NULL;
     }
 
     return makeErrorMsgReturn(ERR_ROOT, "timed out while waiting to receive UBX message");
@@ -326,6 +327,7 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
             errResp = makeErrorFmtMsgReturn(ERR_ROOT, "received unexpected message type (0x%02x-0x%02x) in response to UBX poll",
                                             answer->type.class, answer->type.id);
         free(answer->body);
+        answer->body = NULL;
         return errResp;
     }
 }
@@ -621,8 +623,11 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     // convert to from integer 40, 41, etc to hex 0x40, 0x41
     nmeaver = (nmeaver / 10) * 16 + (nmeaver % 10);
     slReturn nmeaVerResp = ubxConfigNMEAVersion(fdPort, verbosity, nmeaver);
-    if (isErrorReturn(nmeaVerResp))
-        return makeErrorMsgReturn(ERR_CAUSE(nmeaVerResp), "problem configuring NMEA version");
+    if (isErrorReturn(nmeaVerResp)) {
+        if (verbosity >= 1)
+            printf("Warning: problem configuring NMEA version: %s\n", getReturnMsg(nmeaVerResp));
+        freeReturn(nmeaVerResp);
+    }
 
     return makeOkReturn();
 }
@@ -744,8 +749,11 @@ extern slReturn ubxConfigForTiming(int fdPort, int verbosity) {
     for (size_t i = 0; i < sizeof(nmeaMsgs) / sizeof(nmeaMsgs[0]); i++) {
         resp = ubxEnableNMEAMsg(fdPort, verbosity, nmeaMsgs[i].id,
                                 iniparser_getboolean(gpsctlConf, nmeaMsgs[i].key, nmeaMsgs[i].def));
-        if (isErrorReturn(resp))
-            return makeErrorMsgReturn(ERR_CAUSE(resp), "problem configuring NMEA message output for timing");
+        if (isErrorReturn(resp)) {
+            if (verbosity >= 1)
+                printf("Warning: problem configuring NMEA message output for timing: %s\n", getReturnMsg(resp));
+            freeReturn(resp);
+        }
     }
 
     return makeOkReturn();
@@ -1253,7 +1261,7 @@ extern slReturn ubxSaveConfig(int fdPort, int verbosity) {
     // construct the save configuration message...
     slBuffer* saveMsgBody = create_slBuffer(13, LittleEndian);
     put_uint32_slBuffer(saveMsgBody,  0, 0x0000);  // clear mask all off...
-    put_uint32_slBuffer(saveMsgBody,  4, 0x041B);  // save mask: ioPort, msgConf, navConf, rxmConf, antConf all on...
+    put_uint32_slBuffer(saveMsgBody,  4, 0x081B);  // save mask: ioPort, msgConf, navConf, rxmConf, antConf all on...
     put_uint32_slBuffer(saveMsgBody,  8, 0x0000);  // load mask all off...
     put_uint8_slBuffer(saveMsgBody, 12, 0x01);     // battery-backed RAM...
     ubxMsg saveMsg = createUbxMsg(ut_CFG_CFG, saveMsgBody);

@@ -94,6 +94,10 @@ struct clientData_slOptions {
 
 dictionary *gpsctlConf;
 
+// Forward declarations for the NMEA configuration helpers, which are defined below the action functions...
+static slReturn syncAndApplyNMEA(clientData_slOptions* cd);
+static void applyNMEASettingBestEffort(clientData_slOptions* cd);
+
 // Set the sync method to that specified in the argument.  Returns Ok if there's no argument (and do nothing) or the
 // argument was recognized; or an Error if there was an unrecognizable argument.
 static slReturn setSyncMethod(const char* arg, clientData_slOptions* clientData) {
@@ -941,6 +945,9 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     // change the client data to reflect the detected baud rate...
     cd->baud = getReturnInfoInt32(abResp);
 
+    // now that the baud rate is known, apply the configured NMEA setting (best effort)...
+    applyNMEASettingBestEffort(cd);
+
     return makeOkReturn();
 }
 
@@ -957,6 +964,10 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
         close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
+
+    // the port is now usable, so apply the configured NMEA setting (best effort)...
+    applyNMEASettingBestEffort(cd);
+
     return makeOkReturn();
 }
 
@@ -971,6 +982,10 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
         close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(resp), "failed to change baud rate");
     }
+
+    // the port is now usable at the new baud rate, so apply the configured NMEA setting (best effort)...
+    applyNMEASettingBestEffort(cd);
+
     return makeOkReturn();
 }
 
@@ -984,8 +999,11 @@ static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* co
         return makeErrorMsgReturn(ERR_CAUSE(ssResp), "error while synchronizing on serial data");
 
     bool success = getReturnInfoBool(ssResp);
-    if (success)
+    if (success) {
+        // the link is usable, so apply the configured NMEA setting (best effort)...
+        applyNMEASettingBestEffort(cd);
         return makeOkReturn();
+    }
     else
         return makeErrorMsgReturn(ERR_ROOT, "failed to synchronize");
 }
@@ -1016,6 +1034,21 @@ static slReturn syncAndApplyNMEA(clientData_slOptions* cd) {
     if (!getReturnInfoBool(usResp))
         return makeErrorMsgReturn(ERR_ROOT, "could not synchronize UBX protocol with GPS");
     return applyNMEASetting(cd);
+}
+
+
+// Synchronizes with the GPS and applies the configured NMEA setting, but reports any failure as a
+// warning instead of an error.  Used by actions that benefit from NMEA data being enabled but that
+// should not fail merely because the GPS could not be configured (for example, echo or baud setup).
+static void applyNMEASettingBestEffort(clientData_slOptions* cd) {
+    // If nmea flag is not explicitly 0 or 1 return without touching it, so that the "statusquo"
+    // setting does not cause a needless synchronization attempt.
+    if (cd->nmea < 0 || cd->nmea > 1)
+        return;
+    slReturn resp = syncAndApplyNMEA(cd);
+    if (isErrorReturn(resp))
+        printReturn(resp, true, false);
+    freeReturn(resp);
 }
 
 
@@ -1126,6 +1159,9 @@ static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* c
 
     if (V2) printf("Starting echo...\n");
     clientData_slOptions* cd = config->clientData;
+
+    // make sure NMEA data is enabled before we try to echo it (best effort)...
+    applyNMEASettingBestEffort(cd);
 
     // figure out our timing...
     long long startTime = currentTimeMs();
