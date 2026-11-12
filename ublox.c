@@ -367,11 +367,13 @@ extern slReturn ubxReset(int fdPort, int verbosity) {
 
     // construct our reset message (which won't be acknowledged in any way)...
     slBuffer* body = create_slBuffer(4, LittleEndian);
-    put_uint16_slBuffer(body, 0xffff, 0);  // we're doing a cold start...
-    put_uint8_slBuffer(body, 2, 0);  // immediate restart...
+    put_uint16_slBuffer(body, 0, 0xffff);  // navBbrMask: cold start
+    put_uint8_slBuffer(body, 2, 0);        // resetMode:  immediate restart
+    put_uint8_slBuffer(body, 3, 0);        // reserved
     ubxType type = { UBX_CFG, UBX_CFG_RST };
     ubxMsg msg = createUbxMsg(type, body);
     slReturn sumResp = sendUbxMsg(fdPort, msg);
+    free(body);
     return sumResp;
 }
 
