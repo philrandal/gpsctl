@@ -1,3 +1,6 @@
+2026-11-12 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.25
+    Various bug fixes
+    
 2026-11-12 - Phil Randal and Claude - Release 1.24
     Various double free, buffer overflow, null pointer dereference fixes, etc via Claude AI
     Fix ubxReset parameters (Claude AI)
