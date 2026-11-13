@@ -227,24 +227,53 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
 }
 
 
-// Waits for an ACK/NAK message.
+// Waits for the ACK/NAK that refers to the given message type.  An ACK or NAK for some other message (one left
+// over from an earlier command, or from a poll) is not ours to interpret and is ignored, so that a stale ACK can
+// never be mistaken for the answer to the command we just sent.  Anything else is most likely a late reply to an
+// earlier poll, so it's remembered and ignored too, until our waiting time runs out.
 #define ACK_WAIT_MS 1500
 #define POLL_ACK_DRAIN_MS 250
-static slReturn ubxAckWait(int fdPort) {
+static slReturn ubxAckWait(int fdPort, ubxType sentType) {
 
-    ubxMsg ackMsg;
-    slReturn result = rcvUbxMsg(fdPort, &ackMsg, ACK_WAIT_MS);
-    if (isErrorReturn(result)) return makeErrorMsgReturn(ERR_CAUSE(result), "Problem receiving ACK message");
+    long long startTime = currentTimeMs();
+    ubxType lastOther = { 0, 0 };
+    while (true) {
 
-    free(ackMsg.body);
+        // work out what's left of our waiting time, so that ignoring stray messages can't extend it...
+        long long remaining = ACK_WAIT_MS - (currentTimeMs() - startTime);
+        if (remaining <= 0) {
+            if ((lastOther.class != 0) || (lastOther.id != 0))
+                return makeErrorFmtMsgReturn(ERR_ROOT, "timed out waiting for ACK, last message received was 0x%02x-0x%02x",
+                                             lastOther.class, lastOther.id);
+            return makeErrorMsgReturn(ERR_ROOT, "timed out while waiting for ACK message");
+        }
 
-    if (ackMsg.type.class != UBX_ACK)
-        return makeErrorFmtMsgReturn(ERR_ROOT, "Unexpected message received while waiting for ACK: %02x/%02x", ackMsg.type.class, ackMsg.type.id);
-    else
+        // get the next message...
+        ubxMsg ackMsg;
+        slReturn result = rcvUbxMsg(fdPort, &ackMsg, (int) remaining);
+        if (isErrorReturn(result)) return makeErrorMsgReturn(ERR_CAUSE(result), "Problem receiving ACK message");
+        freeReturn(result);
+
+        // anything that isn't an ACK/NAK is not for us, so remember it and keep waiting...
+        if (ackMsg.type.class != UBX_ACK) {
+            lastOther = ackMsg.type;
+            free(ackMsg.body);
+            continue;
+        }
+
+        // an ACK/NAK names the message it refers to, so drop any that isn't about ours (a stale one)...
+        uint8_t ackClass = get_uint8_slBuffer(ackMsg.body, 0);
+        uint8_t ackId    = get_uint8_slBuffer(ackMsg.body, 1);
+        free(ackMsg.body);
+        if ((ackClass != sentType.class) || (ackId != sentType.id))
+            continue;
+
+        // this one is ours...
         if (ackMsg.type.id == UBX_ACK_ACK)
             return makeOkReturn();
-        else
-            return makeErrorMsgReturn(ERR_ROOT, "Received a NAK");
+
+        return makeErrorMsgReturn(ERR_ROOT, "Received a NAK");
+    }
 }
 
 
@@ -284,7 +313,7 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
 static slReturn sendUbxAckedMsg(int fdPort, ubxMsg msg) {
     slReturn result = sendUbxMsg(fdPort, msg);
     if (isErrorReturn(result)) return result;
-    return ubxAckWait(fdPort);
+    return ubxAckWait(fdPort, msg.type);
 }
 
 
@@ -529,8 +558,18 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         return makeErrorMsgReturn(ERR_CAUSE(gnssResp), "problem getting GNSS information from GPS");
 
     // make the changes we need to make...
-    uint8_t gnssRecs = get_uint8_slBuffer(gnssMsg.body, 3);  // number of configuration blocks...
     slBuffer* b = gnssMsg.body;
+
+    // the body comes from the device, so never trust its record count further than the body can actually hold
+    // (4 header bytes, then 8 per block), and reject a body too short to hold even one block...
+    size_t bodySize = size_slBuffer(b);
+    if (bodySize < 12) {
+        free(gnssMsg.body);
+        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected CFG-GNSS message body size: %zu bytes", bodySize);
+    }
+    uint8_t gnssRecs = get_uint8_slBuffer(b, 3);  // number of configuration blocks...
+    uint8_t maxRecs = (uint8_t) ((bodySize - 4) / 8);
+    if (gnssRecs > maxRecs) gnssRecs = maxRecs;
     for (int i = 0; i < gnssRecs; i++) {
 
         size_t o = 4 + 8 * (size_t)i;
@@ -1110,6 +1149,20 @@ static slReturn isNmeaOn(int fdPort) {
     return makeOkInfoReturn(bool2info(state));
 }
 
+// Returns an Ok if the given message body is at least the given size, so that a short or corrupt reply from the
+// device is reported rather than silently decoded into a zeroed configuration.  On failure the body is freed,
+// since there is nothing left for the caller to do with it.
+static slReturn validateBodySize(ubxMsg* msg, size_t minSize, const char* name) {
+
+    if (size_slBuffer(msg->body) >= minSize) return makeOkReturn();
+
+    size_t actualSize = size_slBuffer(msg->body);
+    free(msg->body);
+    msg->body = NULL;
+    return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected %s message body size: %zu bytes", name, actualSize);
+}
+
+
 // Fills the ubxConfig structure at the given pointer with information about the GPS's configuration.
 extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
 
@@ -1121,6 +1174,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn antResp = pollUbx(fdPort, msg, CFG_ANT_MAX_MS, &antMsg);
     if (isErrorReturn(antResp))
         return makeErrorMsgReturn(ERR_CAUSE(antResp), "problem getting antenna information from GPS");
+    slReturn antSize = validateBodySize(&antMsg, 4, "CFG-ANT");
+    if (isErrorReturn(antSize)) return antSize;
+    freeReturn(antSize);
     uint16_t antMask = get_uint16_slBuffer(antMsg.body, 0);
     free(antMsg.body);
     config->antPwr          = isBitSet_slBits(antMask, 0);
@@ -1137,8 +1193,20 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn gnssResp = pollUbx(fdPort, msg, CFG_GNSS_MAX_MS, &gnssMsg);
     if (isErrorReturn(gnssResp))
         return makeErrorMsgReturn(ERR_CAUSE(gnssResp), "problem getting GNSS information from GPS");
+    slReturn gnssSize = validateBodySize(&gnssMsg, 12, "CFG-GNSS");
+    if (isErrorReturn(gnssSize)) return gnssSize;
+    freeReturn(gnssSize);
     config->trkChnnls = get_uint8_slBuffer(gnssMsg.body, 1);
     config->gnssRecs = get_uint8_slBuffer(gnssMsg.body, 3);  // number of configuration blocks...
+
+    // the body comes from the device, so never trust its record count further than the body can actually hold
+    // (4 header bytes, then 8 per block), and a body that claims no blocks at all can't describe a configuration...
+    int maxGnssRecs = (int) ((size_slBuffer(gnssMsg.body) - 4) / 8);
+    if (config->gnssRecs > maxGnssRecs) config->gnssRecs = maxGnssRecs;
+    if (config->gnssRecs <= 0) {
+        free(gnssMsg.body);
+        return makeErrorMsgReturn(ERR_ROOT, "CFG-GNSS message reports no configuration blocks");
+    }
     config->gnss = safeMalloc(sizeof(ubxGNSSConfig) * config->gnssRecs);
     for (int i = 0; i < config->gnssRecs; i++) {
         config->gnss[i].id        = (gnssID) get_uint8_slBuffer(gnssMsg.body,  4 + 8 * (size_t)i);
@@ -1157,6 +1225,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn nav5Resp = pollUbx(fdPort, msg, CFG_NAV5_MAX_MS, &nav5Msg);
     if (isErrorReturn(nav5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(nav5Resp), "problem getting navigation engine information from GPS");
+    slReturn nav5Size = validateBodySize(&nav5Msg, 36, "CFG-NAV5");
+    if (isErrorReturn(nav5Size)) return nav5Size;
+    freeReturn(nav5Size);
     config->model               = (dynModel) get_uint8_slBuffer(nav5Msg.body,  2);
     config->mode                = (fixMode)  get_uint8_slBuffer(nav5Msg.body,  3);
     config->fixedAltM           = 0.01 *     get_int32_slBuffer(nav5Msg.body,  4);
@@ -1183,6 +1254,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn tp5Resp = pollUbx(fdPort, msg, CFG_TP5_MAX_MS, &tp5Msg);
     if (isErrorReturn(tp5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(tp5Resp), "problem getting time pulse information from GPS");
+    slReturn tp5Size = validateBodySize(&tp5Msg, 32, "CFG-TP5");
+    if (isErrorReturn(tp5Size)) return tp5Size;
+    freeReturn(tp5Size);
     config->antCableDelayNs   = get_int16_slBuffer(tp5Msg.body,  4);
     config->rfGroupDelayNs    = get_int16_slBuffer(tp5Msg.body,  6);
     config->freqPeriod        = get_uint32_slBuffer(tp5Msg.body,  8);
@@ -1209,6 +1283,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn rateResp = pollUbx(fdPort, msg, CFG_RATE_MAX_MS, &rateMsg);
     if (isErrorReturn(rateResp))
         return makeErrorMsgReturn(ERR_CAUSE(rateResp), "problem getting fix rate information from GPS");
+    slReturn rateSize = validateBodySize(&rateMsg, 6, "CFG-RATE");
+    if (isErrorReturn(rateSize)) return rateSize;
+    freeReturn(rateSize);
     config->measRateMs =                  get_uint16_slBuffer(rateMsg.body, 0);
     config->navRate    =                  get_uint16_slBuffer(rateMsg.body, 2);
     config->timeRef    = (fixTimeRefType) get_uint16_slBuffer(rateMsg.body, 4);
@@ -1222,6 +1299,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn pmsResp = pollUbx(fdPort, msg, CFG_PMS_MAX_MS, &pmsMsg);
     if (isErrorReturn(pmsResp))
         return makeErrorMsgReturn(ERR_CAUSE(pmsResp), "problem getting power mode information from GPS");
+    slReturn pmsSize = validateBodySize(&pmsMsg, 8, "CFG-PMS");
+    if (isErrorReturn(pmsSize)) return pmsSize;
+    freeReturn(pmsSize);
     config->powerSetup        = (powerModeType) get_uint8_slBuffer(pmsMsg.body, 1);
     config->powerIntervalSecs =                 get_uint16_slBuffer(pmsMsg.body, 2);
     config->powerOnTimeSecs   =                 get_uint16_slBuffer(pmsMsg.body, 4);
@@ -1242,6 +1322,9 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn nmeaResp = pollUbx(fdPort, msg, CFG_NMEA_MAX_MS, &nmeaMsg);
     if (isErrorReturn(nmeaResp))
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem getting NMEA Version information from GPS");
+    slReturn nmeaSize = validateBodySize(&nmeaMsg, 12, "CFG-NMEA");
+    if (isErrorReturn(nmeaSize)) return nmeaSize;
+    freeReturn(nmeaSize);
     config->nmeaVersion        = get_uint8_slBuffer(nmeaMsg.body, 1);
     free(nmeaMsg.body);
 
@@ -1408,7 +1491,7 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
         return makeErrorMsgReturn(ERR_CAUSE(stoResp), "Problem changing the host baud rate");
 
     // now get our ACK...
-    slReturn ackResp = ubxAckWait(fdPort);
+    slReturn ackResp = ubxAckWait(fdPort, ut_CFG_PRT);
 
     // sometimes we don't get the ACK, likely hosed by the baud rate change...
     // so in that case we'll query the port and see what we actually have...
