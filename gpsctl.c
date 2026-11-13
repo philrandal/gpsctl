@@ -178,6 +178,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         else if (c == '$') {
             inLine = true;
             cksm = 0;
+            last[0] = last[1] = last[2] = 0;  // don't let a very short line reuse the previous line's "*XX" tail...
         }
     }
     return makeOkInfoReturn(bool2info(false));
