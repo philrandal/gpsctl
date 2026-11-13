@@ -31,6 +31,7 @@ extern slBuffer* create_slBuffer( size_t size, Endiness endiness ) {
 
     size_t memSize = sizeof( slBuffer ) + size;
     slBuffer* result = safeMalloc( memSize );
+    memset( result, 0, memSize );  // zero-fill, so no uninitialized heap bytes can ever be sent to the GPS
     result->size = size;
     result->endiness = endiness;
     return result;
