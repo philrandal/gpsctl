@@ -114,10 +114,13 @@ static slReturn readUbxBytes(int fdPort, byte *buffer, int *count, size_t max, i
         if (isErrorReturn(rscResp))
             return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
 
-        if (isWarningReturn(rscResp))
+        if (isWarningReturn(rscResp)) {
+            freeReturn(rscResp);
             return makeErrorMsgReturn(ERR_ROOT, "timed out while trying to read UBX message");
+        }
 
         int c = getReturnInfoChar(rscResp);
+        freeReturn(rscResp);
         if (c >= 0) {
             buffer[*count] = (byte) c;
             (*count)++;
@@ -148,10 +151,13 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
             if (isErrorReturn(rscResp))
                 return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
 
-            if (isWarningReturn(rscResp))
+            if (isWarningReturn(rscResp)) {
+                freeReturn(rscResp);
                 break;  // if we timed out...
+            }
 
             int c= getReturnInfoChar(rscResp);
+            freeReturn(rscResp);
             if (c >= 0) {
                 if ((count == 0) && (c == UBX_SYNC1)) {
                     count++;
@@ -1182,6 +1188,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn cn = isNmeaOn(fdPort);
     if (isErrorReturn(cn)) return cn;
     config->nmeaEnabled = getReturnInfoBool(cn);
+    freeReturn(cn);
 
     // get NMEA Version
     ubxType nmeaType = { UBX_CFG, UBX_CFG_NMEA };
@@ -1198,30 +1205,39 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     cn = isNMEAmsgEnabled(fdPort, verbosity, GGA);
     if (isErrorReturn(cn)) return cn;
     config->GGA = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, GLL);
     if (isErrorReturn(cn)) return cn;
     config->GLL = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, GSA);
     if (isErrorReturn(cn)) return cn;
     config->GSA = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, GSV);
     if (isErrorReturn(cn)) return cn;
     config->GSV = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, RMC);
     if (isErrorReturn(cn)) return cn;
     config->RMC = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, VTG);
     if (isErrorReturn(cn)) return cn;
     config->VTG = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, GRS);
     if (isErrorReturn(cn)) return cn;
     config->GRS = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, GST);
     if (isErrorReturn(cn)) return cn;
     config->GST = getReturnInfoBool(cn);
+    freeReturn(cn);
     cn = isNMEAmsgEnabled(fdPort, verbosity, ZDA);
     if (isErrorReturn(cn)) return cn;
     config->ZDA = getReturnInfoBool(cn);
+    freeReturn(cn);
 
     return makeOkReturn();
 }
@@ -1251,6 +1267,7 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
             free(ans.body);
             return makeOkInfoReturn(bool2info(true));
         }
+        freeReturn(result);
     }
     return makeOkInfoReturn(bool2info(false));
 }
@@ -1289,6 +1306,7 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
 
     // extract our state information...
     bool currentState = getReturnInfoBool(cn);
+    freeReturn(cn);
 
     // if we're already in the state we want, just leave...
     if (currentState == nmeaOn) {

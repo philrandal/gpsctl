@@ -35,6 +35,7 @@ extern slReturn getSpeedInfo( int fdPort, speedInfo* result ) {
     if( isErrorReturn( brResp ) )
         return makeErrorMsgReturn( ERR_CAUSE( brResp ), "could not get baud rate" );
     result->baudRate =  getReturnInfoInt32( brResp );
+    freeReturn( brResp );
     result->nsBit = 1000000000 / result->baudRate;
     int stopBits = (options.c_cflag & CSTOPB) ? 2 : 1;
     // CSIZE is 0..3 for CS5..CS8, so add 5 to get the actual number of data bits...
@@ -275,10 +276,13 @@ extern slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbos
         slReturn rscResp = readSerialChar( fdPort, start + maxTimeMs - currentTimeMs() );
         if( isErrorReturn( rscResp ) )
             return makeErrorMsgReturn( ERR_CAUSE( rscResp ), "problem reading a character while synchronizing" );
-        if( isWarningReturn( rscResp ) )
+        if( isWarningReturn( rscResp ) ) {
+            freeReturn( rscResp );
             return makeOkInfoReturn( bool2info( false ) );
+        }
 
         char c = getReturnInfoChar( rscResp );
+        freeReturn( rscResp );
         if( ((c >= 32) && (c <= 127)) || (c == 10) || (c == 9) || (c == 13) )
             count++;
         else
@@ -325,7 +329,9 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         slReturn syncResp = synchronizer( fdPort, maxMs, verbosity );
         if( isErrorReturn( syncResp ) )
             return makeErrorMsgReturn( ERR_CAUSE( syncResp ), "problem while synchronizing" );
-        if( getReturnInfoBool( syncResp ) ) {
+        bool synchronized = getReturnInfoBool( syncResp );
+        freeReturn( syncResp );
+        if( synchronized ) {
             if( verbosity >= 2 ) printf( "Synchronized on %d baud...\n", bauds[i] );
             return makeOkInfoReturn(int2info( bauds[i] ));
         }

@@ -90,6 +90,7 @@ struct clientData_slOptions {
     bool error;
     int fdPort;
     bool ubxSynchronized;
+    bool nmeaApplied;
 };
 
 dictionary *gpsctlConf;
@@ -138,10 +139,13 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         slReturn rscResp = readSerialChar(fdPort, start + maxTimeMs - currentTimeMs());
         if (isErrorReturn(rscResp))
             return makeErrorMsgReturn(ERR_CAUSE(rscResp), "problem reading a character while synchronizing");
-        if (isWarningReturn(rscResp))
+        if (isWarningReturn(rscResp)) {
+            freeReturn(rscResp);
             return makeOkInfoReturn(bool2info(false));
+        }
 
         unsigned char c = getReturnInfoChar(rscResp);
+        freeReturn(rscResp);
         if (inLine) {
             if ((c == '\r') || (c == '\n')) {
                 if (last[0] == '*') {
@@ -944,6 +948,12 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         
     // change the client data to reflect the detected baud rate...
     cd->baud = getReturnInfoInt32(abResp);
+    freeReturn(abResp);
+
+    // autoBaudRate() has already synchronized using the selected method; if that was UBX, remember
+    // it so that the NMEA setup below does not synchronize a second time...
+    if (cd->syncMethod == syncUBX)
+        cd->ubxSynchronized = true;
 
     // now that the baud rate is known, apply the configured NMEA setting (best effort)...
     applyNMEASettingBestEffort(cd);
@@ -999,6 +1009,7 @@ static slReturn actionSync(const optionDef_slOptions* defs, const psloConfig* co
         return makeErrorMsgReturn(ERR_CAUSE(ssResp), "error while synchronizing on serial data");
 
     bool success = getReturnInfoBool(ssResp);
+    freeReturn(ssResp);
     if (success) {
         // the link is usable, so apply the configured NMEA setting (best effort)...
         applyNMEASettingBestEffort(cd);
@@ -1017,9 +1028,15 @@ static slReturn applyNMEASetting(clientData_slOptions* cd) {
     //   so nmea enabled option 'enabled=statusquo' wouldn't change setting
     if (cd->nmea < 0 || cd->nmea > 1)
         return makeOkReturn();
+
+    // don't repeat the same configuration if an earlier action already applied it successfully...
+    if (cd->nmeaApplied)
+        return makeOkReturn();
+
     slReturn resp = ubxSetNMEAData(cd->fdPort, cd->verbosity, cd->nmea);
     if (isErrorReturn(resp))
         return makeErrorFmtMsgReturn(ERR_CAUSE(resp), "failed to turn NMEA data %s", cd->nmea ? "on" : "off");
+    cd->nmeaApplied = true;
     return makeOkReturn();
 }
 
@@ -1031,9 +1048,15 @@ static slReturn syncAndApplyNMEA(clientData_slOptions* cd) {
     slReturn usResp = syncSerial(syncUBX, cd);
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
-    if (!getReturnInfoBool(usResp))
+    if (!getReturnInfoBool(usResp)) {
+        freeReturn(usResp);
         return makeErrorMsgReturn(ERR_ROOT, "could not synchronize UBX protocol with GPS");
-    return applyNMEASetting(cd);
+    }
+
+    // apply the NMEA setting, then release the synchronization result...
+    slReturn applyResp = applyNMEASetting(cd);
+    freeReturn(usResp);
+    return applyResp;
 }
 
 
@@ -1046,7 +1069,7 @@ static void applyNMEASettingBestEffort(clientData_slOptions* cd) {
     if (cd->nmea < 0 || cd->nmea > 1)
         return;
     slReturn resp = syncAndApplyNMEA(cd);
-    if (isErrorReturn(resp))
+    if (isErrorReturn(resp) && (cd->verbosity >= 1))
         printReturn(resp, true, false);
     freeReturn(resp);
 }
@@ -1114,6 +1137,11 @@ static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* 
     if (isErrorReturn(urResp))
         return makeErrorMsgReturn(ERR_CAUSE(urResp), "problem resetting the GPS");
 
+    // the reset may restore the receiver's default port and NMEA configuration, so anything we
+    // previously applied is no longer known to be in effect...
+    cd->ubxSynchronized = false;
+    cd->nmeaApplied = false;
+
     return makeOkReturn();
 }
 
@@ -1171,9 +1199,12 @@ static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* c
         slReturn rscResp = readSerialChar(cd->fdPort, 1000);
         if (isErrorReturn(rscResp))
             return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read character while echoing");
-        if (isWarningReturn(rscResp))
+        if (isWarningReturn(rscResp)) {
+            freeReturn(rscResp);
             continue;  // we timed out; just try again...
+        }
         int c = getReturnInfoChar(rscResp);
+        freeReturn(rscResp);
         if (c >= 0) printf("%c", c);
     }
 
@@ -1213,6 +1244,26 @@ static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* c
     // stuff our file descriptor and return in victory...
     cd->fdPort = fdPort;
     if (V2) printf("Serial port open and configured...\n");
+
+    // If no baud rate was specified, keep the port's current rate but still put it into raw 8N1
+    // mode.  Without this, echo and the synchronizers would run against the inherited canonical
+    // and echo settings, which buffer input and can echo received characters back to the GPS.
+    // This is best-effort so that an autobaud run can still proceed if the current rate is unusual.
+    if (cd->baud == 0) {
+        speedInfo si;
+        slReturn gsiResp = getSpeedInfo(fdPort, &si);
+        if (isErrorReturn(gsiResp)) {
+            if (V2) printReturn(gsiResp, true, false);
+            freeReturn(gsiResp);
+        }
+        else {
+            slReturn stoResp = setTermOptions(fdPort, si.baudRate, 8, 1, false, false);
+            if (isErrorReturn(stoResp)) {
+                if (V2) printReturn(stoResp, true, false);
+                freeReturn(stoResp);
+            }
+        }
+    }
 
     // NOTE: NMEA configuration is deliberately not applied here. This runs before any baud
     // rate or autobaud option, so the UBX link is not yet usable. It is applied by the
@@ -1276,7 +1327,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             NULL,                                                               // constrainer
             actionQuiet,                                                        // action
             NULL,                                                               // argument name
-            "get verbose messages"
+            "suppress normal output"
     };
 
 
@@ -1352,7 +1403,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             NULL,                                                               // constrainer
             actionSaveConfig,                                                   // action
             NULL,                                                               // argument name
-            "synchronize using ascii, nmea, ubx data (default is ubx)"
+            "save the GPS configuration to battery-backed RAM"
     };
 
     optionDef_slOptions resetDef = {
