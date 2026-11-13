@@ -303,48 +303,63 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     free(pollMsg.body);
     if (isErrorReturn(txResult)) return makeErrorMsgReturn(ERR_CAUSE(txResult), "Problem sending poll message");
 
-    // now get the poll response message.  An ACK-ACK left over from an earlier command (one whose ACK we did not
-    // wait for, or that arrived after we gave up on it) can already be queued ahead of our response, so discard
-    // any such stray ACK-ACKs, within reason, rather than mistaking one for the answer to this poll...
-    slReturn resp = rcvUbxMsg(fdPort, answer, max_ms);
-    for (int stray = 0; stray < 4 && !isErrorReturn(resp) && !cmpUbxType(pollMsg.type, answer->type) &&
-                        (answer->type.class == UBX_ACK && answer->type.id == UBX_ACK_ACK); stray++) {
-        free(answer->body);
-        answer->body = NULL;
-        resp = rcvUbxMsg(fdPort, answer, max_ms);
-    }
-    if (isErrorReturn(resp)) return makeErrorMsgReturn(ERR_CAUSE(resp), "Problem receiving poll response");
+    // A poll may be answered by more than one message, and the receiver is free to send them in any order.  It
+    // may also still have an ACK-ACK from an earlier command queued up.  So keep reading until we see the response
+    // we actually asked for, noting any ACK-ACK along the way...
+    long long startTime = currentTimeMs();
+    bool gotAck = false;
+    while (true) {
 
-    // make sure it's the response type we expected...
-    if (cmpUbxType(pollMsg.type, answer->type)) {
+        // work out what's left of our overall polling time, so that skipping stray messages can't extend it...
+        long long remaining = max_ms - (currentTimeMs() - startTime);
+        if (remaining <= 0)
+            return makeErrorMsgReturn(ERR_ROOT, "timed out while waiting for UBX poll response");
 
-        // certain poll messages (notably configuration) ALSO send an ACK-ACK; for those, get it...
-        if (pollMsg.type.class == UBX_CFG) {
+        // now get the next message...
+        slReturn resp = rcvUbxMsg(fdPort, answer, (int) remaining);
+        if (isErrorReturn(resp)) return makeErrorMsgReturn(ERR_CAUSE(resp), "Problem receiving poll response");
+        freeReturn(resp);
 
-            // get our ack, if our class of messages so requires...
-            slReturn ackResp = ubxAckWait(fdPort);
-            if (isErrorReturn(ackResp)) {
-                free(answer->body);
-                answer->body = NULL;
-                return makeErrorMsgReturn(ERR_CAUSE(ackResp), "Problem receiving expected ACK for poll");
-            }
+        // if this is the response we asked for, we're done...
+        if (cmpUbxType(pollMsg.type, answer->type))
+            break;
+
+        // we might have received a NAK (in the case of an invalid poll message being sent)...
+        if (cmpUbxType(answer->type, ut_ACK_NAK)) {
+            free(answer->body);
+            answer->body = NULL;
+            return makeErrorMsgReturn(ERR_ROOT, "received NAK in response to UBX poll");
         }
-        return makeOkReturn();
-    }
-    else {
 
-        // we might have received a NAK (in the case of an invalid poll message being sent),
-        // or maybe we got complete garbage, so we distinguish between them...
-        slReturn errResp;
-        if (cmpUbxType(answer->type, ut_ACK_NAK))
-            errResp = makeErrorMsgReturn(ERR_ROOT, "received NAK in response to UBX poll");
-        else
-            errResp = makeErrorFmtMsgReturn(ERR_ROOT, "received unexpected message type (0x%02x-0x%02x) in response to UBX poll",
-                                            answer->type.class, answer->type.id);
+        // or an ACK-ACK that arrived ahead of the response itself; remember it and keep waiting...
+        if ((answer->type.class == UBX_ACK) && (answer->type.id == UBX_ACK_ACK)) {
+            gotAck = true;
+            free(answer->body);
+            answer->body = NULL;
+            continue;
+        }
+
+        // or maybe we got complete garbage...
+        slReturn errResp = makeErrorFmtMsgReturn(ERR_ROOT, "received unexpected message type (0x%02x-0x%02x) in response to UBX poll",
+                                                 answer->type.class, answer->type.id);
         free(answer->body);
         answer->body = NULL;
         return errResp;
     }
+
+    // certain poll messages (notably configuration) ALSO send an ACK-ACK; if it did not arrive ahead of the
+    // response, get it now.  If it did, this poll's ACK has already been consumed and there is nothing left to wait for...
+    if ((pollMsg.type.class == UBX_CFG) && !gotAck) {
+        slReturn ackResp = ubxAckWait(fdPort);
+        if (isErrorReturn(ackResp)) {
+            free(answer->body);
+            answer->body = NULL;
+            return makeErrorMsgReturn(ERR_CAUSE(ackResp), "Problem receiving expected ACK for poll");
+        }
+        freeReturn(ackResp);
+    }
+
+    return makeOkReturn();
 }
 
 
