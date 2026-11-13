@@ -800,11 +800,28 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
     args_slOptions *args = getReturnInfo( response );
     freeReturn( response );  // frees the return record itself; the args it carried (which we now own) are not freed
 
+    // Help, version and usage are purely informational.  If any of them was requested, run just those and stop,
+    // skipping everything else - in particular the client's before-action function, which for gpsctl opens the serial
+    // port (so "gpsctl --version" used to fail on any machine without a usable serial device)...
+    optRecIteratorState itState;
+    const procOptionRecord *rec;
+    bool informational = false;
+    optRecIteratorInit( &itState, state.optDefs );
+    while((rec = optRecIterator( &itState, &state )) != NULL) {
+        if( (rec->def->action == helpAction) || (rec->def->action == versionAction) || (rec->def->action == usageAction) ) {
+            informational = true;
+            slReturn result = rec->def->action( state.optDefs, config );
+            EH( result, "action" )
+        }
+    }
+    if( informational ) {
+        free((void *) state.optDefs );
+        return makeOkInfoReturn( args );
+    }
+
     // when we get here, response.argc is the count of unprocessed arguments pointed to by response.argv...
     if( DEBUG) printf( "Starting individual option parsing phase\n" );
-    optRecIteratorState itState;
     optRecIteratorInit( &itState, state.optDefs );
-    const procOptionRecord *rec;
     while((rec = optRecIterator( &itState, &state )) != NULL) {
 
         // if we have a parse function, call it...
