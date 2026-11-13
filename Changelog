@@ -1,11 +1,8 @@
-2026-11-13 - Phil Randal and Claude and OpenCode / DeepSeek V4.1 Flash Free - Release 1.26
+2026-11-13 - Phil Randal and Claude and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
     Various bug fixes
     Fix NMEA initialisation
     Optimise serial reads using poll() (thanks, Claude)
-
-2026-11-12 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.25
-    Withdrawn due to accidental code regression
-    
+   
 2026-11-12 - Phil Randal and Claude - Release 1.24
     Various double free, buffer overflow, null pointer dereference fixes, etc via Claude AI
     Fix ubxReset parameters (Claude AI)
