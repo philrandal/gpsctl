@@ -303,8 +303,16 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     free(pollMsg.body);
     if (isErrorReturn(txResult)) return makeErrorMsgReturn(ERR_CAUSE(txResult), "Problem sending poll message");
 
-    // now get the poll response message...
+    // now get the poll response message.  An ACK-ACK left over from an earlier command (one whose ACK we did not
+    // wait for, or that arrived after we gave up on it) can already be queued ahead of our response, so discard
+    // any such stray ACK-ACKs, within reason, rather than mistaking one for the answer to this poll...
     slReturn resp = rcvUbxMsg(fdPort, answer, max_ms);
+    for (int stray = 0; stray < 4 && !isErrorReturn(resp) && !cmpUbxType(pollMsg.type, answer->type) &&
+                        (answer->type.class == UBX_ACK && answer->type.id == UBX_ACK_ACK); stray++) {
+        free(answer->body);
+        answer->body = NULL;
+        resp = rcvUbxMsg(fdPort, answer, max_ms);
+    }
     if (isErrorReturn(resp)) return makeErrorMsgReturn(ERR_CAUSE(resp), "Problem receiving poll response");
 
     // make sure it's the response type we expected...
