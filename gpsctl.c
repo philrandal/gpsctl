@@ -1046,7 +1046,14 @@ static slReturn applyNMEASetting(clientData_slOptions* cd) {
 // A timeout is reported by syncSerial() as Ok with a false info value, so that case is treated
 // as an error here rather than falling through to send commands over an unusable link.
 static slReturn syncAndApplyNMEA(clientData_slOptions* cd) {
+    // A timeout may just mean the GPS was busy or the first bytes were garbled, so retry twice (three
+    // attempts in all) before giving up.  A real error is not retried...
     slReturn usResp = syncSerial(syncUBX, cd);
+    for (int retry = 0; retry < 2 && !isErrorReturn(usResp) && !getReturnInfoBool(usResp); retry++) {
+        if (cd->verbosity >= 1) printf("UBX synchronization timed out, retrying (%d of 2)...\n", retry + 1);
+        freeReturn(usResp);
+        usResp = syncSerial(syncUBX, cd);
+    }
     if (isErrorReturn(usResp))
         return makeErrorMsgReturn(ERR_CAUSE(usResp), "could not synchronize UBX protocol");
     if (!getReturnInfoBool(usResp)) {
