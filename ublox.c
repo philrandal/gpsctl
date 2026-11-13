@@ -338,6 +338,7 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     slReturn txResult = sendUbxMsg(fdPort, pollMsg);
     free(pollMsg.body);
     if (isErrorReturn(txResult)) return makeErrorMsgReturn(ERR_CAUSE(txResult), "Problem sending poll message");
+    freeReturn(txResult);
 
     // A poll may be answered by more than one message, and the receiver is free to send them in any order.  It
     // may also still have an ACK-ACK, or a reply to an earlier poll, queued up or in flight.  So keep reading
@@ -466,6 +467,7 @@ extern slReturn isNMEAmsgEnabled(int fdPort, int verbosity, nmeaMSG messageID) {
     ubxMsg current;
     slReturn resp = pollUbx(fdPort, poll, CFG_NMEA_MAX_MS, &current);
     if (isErrorReturn(resp)) return resp;
+    freeReturn(resp);
 
     bool state =  get_uint8_slBuffer(current.body, 3);
     free(current.body);
@@ -493,6 +495,7 @@ extern slReturn ubxEnableNMEAMsg(int fdPort, int verbosity, nmeaMSG messageID, b
         free(body);
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "failed to enable /disable NMEA MSG");
     }
+    freeReturn(nmeaResp);
 
     free(body);
 
@@ -510,6 +513,7 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
     slReturn nmeaResp = pollUbx(fdPort, msg, CFG_NMEA_MAX_MS, &nmeaMsg);
     if (isErrorReturn(nmeaResp))
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem getting NMEA Version information from GPS");
+    freeReturn(nmeaResp);
 
     // make the changes we need to make only if we need to...
     slBuffer* b = nmeaMsg.body;
@@ -522,6 +526,7 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
             free(nmeaMsg.body);
             return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem sending NMEA Version configuration to GPS");
         }
+        freeReturn(nmeaResp);
     }
     free(nmeaMsg.body);
 
@@ -556,6 +561,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     slReturn gnssResp = pollUbx(fdPort, msg, CFG_GNSS_MAX_MS, &gnssMsg);
     if (isErrorReturn(gnssResp))
         return makeErrorMsgReturn(ERR_CAUSE(gnssResp), "problem getting GNSS information from GPS");
+    freeReturn(gnssResp);
 
     // make the changes we need to make...
     slBuffer* b = gnssMsg.body;
@@ -688,6 +694,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         free(gnssMsg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending GNSS configuration to GPS");
     }
+    freeReturn(suamResp);
     free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
@@ -725,6 +732,7 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
     slReturn tp5Resp = pollUbx(fdPort, msg, CFG_TP5_MAX_MS, &tp5Msg);
     if (isErrorReturn(tp5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(tp5Resp), "problem getting time pulse information from GPS");
+    freeReturn(tp5Resp);
 
     // make the changes we need to make...
     slBuffer* b = tp5Msg.body;
@@ -744,6 +752,7 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
         free(tp5Msg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending time pulse configuration to GPS");
     }
+    freeReturn(suamResp);
     free(tp5Msg.body);
 
     return makeOkReturn();
@@ -758,6 +767,7 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     slReturn nav5Resp = pollUbx(fdPort, msg, CFG_NAV5_MAX_MS, &nav5Msg);
     if (isErrorReturn(nav5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(nav5Resp), "problem getting navigation engine information from GPS");
+    freeReturn(nav5Resp);
 
     // make our changes...
     slBuffer* b = nav5Msg.body;
@@ -785,6 +795,7 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
         free(nav5Msg.body);
         return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending navigation engine configuration to GPS");
     }
+    freeReturn(suamResp);
     free(nav5Msg.body);
 
     return makeOkReturn();
@@ -849,6 +860,7 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     ubxMsg fixMsg;
     slReturn pollResp = pollUbx(fdPort, createUbxMsg(ut_NAV_PVT, create_slBuffer(0, LittleEndian)), NAV_PVT_MAX_MS, &fixMsg);
     if (isErrorReturn(pollResp)) return pollResp;
+    freeReturn(pollResp);
     if (size_slBuffer(fixMsg.body) < NAV_PVT_BODY_SIZE) {
         size_t actualSize = size_slBuffer(fixMsg.body);
         free(fixMsg.body);
@@ -915,6 +927,7 @@ extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
     ubxMsg versionMsg;
     slReturn result = pollUbx(fdPort, msg, MON_VER_MAX_MS, &versionMsg);
     if (isErrorReturn(result)) return result;
+    freeReturn(result);
 
     // decode the message and print the results...
     char* buf = (char *) buffer_slBuffer(versionMsg.body);
@@ -991,6 +1004,7 @@ extern slReturn ubxGetSatellites(int fdPort, int verbosity, ubxSatellites* satel
     ubxMsg satMsg;
     slReturn nsResp = pollUbx(fdPort, msg, MON_VER_MAX_MS, &satMsg);
     if (isErrorReturn(nsResp)) return nsResp;
+    freeReturn(nsResp);
 
     // now decode our message, starting with the number of satellites...  The body comes from the device, so never
     // trust its satellite count further than the body can actually hold (8 header bytes, then 12 per satellite)...
@@ -1143,6 +1157,7 @@ static slReturn isNmeaOn(int fdPort) {
     ubxMsg current;
     slReturn resp = pollUbx(fdPort, poll, CFG_PRT_MAX_MS, &current);
     if (isErrorReturn(resp)) return resp;
+    freeReturn(resp);
 
     bool state =  isBitSet_slBits(get_uint16_slBuffer(current.body, 14), 1);
     free(current.body);
@@ -1174,6 +1189,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn antResp = pollUbx(fdPort, msg, CFG_ANT_MAX_MS, &antMsg);
     if (isErrorReturn(antResp))
         return makeErrorMsgReturn(ERR_CAUSE(antResp), "problem getting antenna information from GPS");
+    freeReturn(antResp);
     slReturn antSize = validateBodySize(&antMsg, 4, "CFG-ANT");
     if (isErrorReturn(antSize)) return antSize;
     freeReturn(antSize);
@@ -1193,6 +1209,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn gnssResp = pollUbx(fdPort, msg, CFG_GNSS_MAX_MS, &gnssMsg);
     if (isErrorReturn(gnssResp))
         return makeErrorMsgReturn(ERR_CAUSE(gnssResp), "problem getting GNSS information from GPS");
+    freeReturn(gnssResp);
     slReturn gnssSize = validateBodySize(&gnssMsg, 12, "CFG-GNSS");
     if (isErrorReturn(gnssSize)) return gnssSize;
     freeReturn(gnssSize);
@@ -1225,6 +1242,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn nav5Resp = pollUbx(fdPort, msg, CFG_NAV5_MAX_MS, &nav5Msg);
     if (isErrorReturn(nav5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(nav5Resp), "problem getting navigation engine information from GPS");
+    freeReturn(nav5Resp);
     slReturn nav5Size = validateBodySize(&nav5Msg, 36, "CFG-NAV5");
     if (isErrorReturn(nav5Size)) return nav5Size;
     freeReturn(nav5Size);
@@ -1254,6 +1272,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn tp5Resp = pollUbx(fdPort, msg, CFG_TP5_MAX_MS, &tp5Msg);
     if (isErrorReturn(tp5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(tp5Resp), "problem getting time pulse information from GPS");
+    freeReturn(tp5Resp);
     slReturn tp5Size = validateBodySize(&tp5Msg, 32, "CFG-TP5");
     if (isErrorReturn(tp5Size)) return tp5Size;
     freeReturn(tp5Size);
@@ -1283,6 +1302,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn rateResp = pollUbx(fdPort, msg, CFG_RATE_MAX_MS, &rateMsg);
     if (isErrorReturn(rateResp))
         return makeErrorMsgReturn(ERR_CAUSE(rateResp), "problem getting fix rate information from GPS");
+    freeReturn(rateResp);
     slReturn rateSize = validateBodySize(&rateMsg, 6, "CFG-RATE");
     if (isErrorReturn(rateSize)) return rateSize;
     freeReturn(rateSize);
@@ -1299,6 +1319,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn pmsResp = pollUbx(fdPort, msg, CFG_PMS_MAX_MS, &pmsMsg);
     if (isErrorReturn(pmsResp))
         return makeErrorMsgReturn(ERR_CAUSE(pmsResp), "problem getting power mode information from GPS");
+    freeReturn(pmsResp);
     slReturn pmsSize = validateBodySize(&pmsMsg, 8, "CFG-PMS");
     if (isErrorReturn(pmsSize)) return pmsSize;
     freeReturn(pmsSize);
@@ -1322,6 +1343,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     slReturn nmeaResp = pollUbx(fdPort, msg, CFG_NMEA_MAX_MS, &nmeaMsg);
     if (isErrorReturn(nmeaResp))
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem getting NMEA Version information from GPS");
+    freeReturn(nmeaResp);
     slReturn nmeaSize = validateBodySize(&nmeaMsg, 12, "CFG-NMEA");
     if (isErrorReturn(nmeaSize)) return nmeaSize;
     freeReturn(nmeaSize);
@@ -1415,6 +1437,7 @@ extern slReturn ubxSaveConfig(int fdPort, int verbosity) {
     free(saveMsgBody);
     if (isErrorReturn(submResp))
         return makeErrorMsgReturn(ERR_CAUSE(submResp), "failed to save GPS configuration");
+    freeReturn(submResp);
 
     if (verbosity >= 1) printf("Saved GPS configuration\n");
     return makeOkReturn();
@@ -1447,6 +1470,7 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
     ubxMsg current;
     slReturn resp = pollUbx(fdPort, poll, CFG_PRT_MAX_MS, &current);
     if (isErrorReturn(resp)) return resp;
+    freeReturn(resp);
 
     // now change the bit we need to diddle...
     slBuffer *bdy = current.body;
@@ -1457,6 +1481,7 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
     slReturn ackResp = sendUbxAckedMsg(fdPort, createUbxMsg(ut_CFG_PRT, bdy));
     free(bdy);
     if (isOkReturn(ackResp)) {
+        freeReturn(ackResp);
         if (verbosity >= 1) printf("Successfully set new configuration to turn NMEA data %s for GPS UART...\n", onoff);
         return makeOkReturn();
     }
@@ -1475,6 +1500,7 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
     slReturn pollAns = pollUbx(fdPort, pollMsg, CFG_PRT_MAX_MS, &current);
     if (isErrorReturn(pollAns))
         return makeErrorMsgReturn(ERR_CAUSE(pollAns), "Problem polling for current configuration before changing baud rate");
+    freeReturn(pollAns);
 
     // update the baud rate in the configuration...
     put_uint32_slBuffer(current.body, 8, newBaudRate);
@@ -1484,18 +1510,22 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
     free(current.body);
     if (isErrorReturn(sendResp))
         return makeErrorMsgReturn(ERR_CAUSE(sendResp), "Problem sending message to change baud rate");
+    freeReturn(sendResp);
 
     // change our host's baud rate to the new one...
     slReturn stoResp = setTermOptionsBaud(fdPort, newBaudRate);
     if (isErrorReturn(stoResp))
         return makeErrorMsgReturn(ERR_CAUSE(stoResp), "Problem changing the host baud rate");
+    freeReturn(stoResp);
 
     // now get our ACK...
     slReturn ackResp = ubxAckWait(fdPort, ut_CFG_PRT);
+    bool gotAck = isOkReturn(ackResp);
+    freeReturn(ackResp);
 
     // sometimes we don't get the ACK, likely hosed by the baud rate change...
     // so in that case we'll query the port and see what we actually have...
-    if (isErrorReturn(ackResp)) {
+    if (!gotAck) {
 
         // poll the current configuration again...
         if (verbosity > 1) printf("ACK missing, repolling for status...\n");
@@ -1504,6 +1534,7 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
         slReturn pollResp = pollUbx(fdPort, repollMsg, CFG_PRT_MAX_MS, &repollResp);
         if (isErrorReturn(pollResp))
             return makeErrorMsgReturn(ERR_CAUSE(pollResp), "Problem on second attempt to verify changed baud rate");
+        freeReturn(pollResp);
         free(repollResp.body);
     }
 

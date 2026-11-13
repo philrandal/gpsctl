@@ -223,6 +223,7 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
     double speed_accuracy_mph = fix.ground_speed_accuracy_mm_s * 0.00223694;
     if (isErrorReturn(result))
         return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining fix from GPS");
+    freeReturn(result);
 
     if (clientData->json) {
         cJSON* root   = cJSON_CreateObject();
@@ -306,6 +307,7 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
     slReturn result = ubxGetVersion(clientData->fdPort, clientData->verbosity, &version);
     if (isErrorReturn(result))
         return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining version information from GPS");
+    freeReturn(result);
 
     if (clientData->json) {
 
@@ -357,6 +359,7 @@ static slReturn doSatelliteQuery(const clientData_slOptions* clientData) {
     slReturn ugsResp = ubxGetSatellites(clientData->fdPort, clientData->verbosity, &satellites);
     if (isErrorReturn(ugsResp))
         return makeErrorMsgReturn(ERR_CAUSE(ugsResp), "Problem obtaining satellites information from GPS");
+    freeReturn(ugsResp);
 
     // sort the result by used or not, then in descending order of CNo...
     qsort(satellites.satellites, (unsigned) satellites.numberOfSatellites, sizeof(ubxSatellite), cmpSatellite);
@@ -462,6 +465,7 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
         free(config.gnss);
         return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining configuration information from GPS");
     }
+    freeReturn(result);
 
     if (clientData->json) {
 
@@ -993,6 +997,7 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
         close(cd->fdPort);
         return makeErrorMsgReturn(ERR_CAUSE(resp), "failed to change baud rate");
     }
+    freeReturn(resp);
 
     // the port is now usable at the new baud rate, so apply the configured NMEA setting (best effort)...
     applyNMEASettingBestEffort(cd);
@@ -1037,6 +1042,7 @@ static slReturn applyNMEASetting(clientData_slOptions* cd) {
     slReturn resp = ubxSetNMEAData(cd->fdPort, cd->verbosity, cd->nmea);
     if (isErrorReturn(resp))
         return makeErrorFmtMsgReturn(ERR_CAUSE(resp), "failed to turn NMEA data %s", cd->nmea ? "on" : "off");
+    freeReturn(resp);
     cd->nmeaApplied = true;
     return makeOkReturn();
 }
@@ -1096,6 +1102,7 @@ static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* 
     slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
         return usResp;
+    freeReturn(usResp);
 
     slReturn resp;
     switch (cd->queryType) {
@@ -1109,6 +1116,7 @@ static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* 
     }
     if (isErrorReturn(resp))
         return makeErrorMsgReturn(ERR_CAUSE(resp), "problem executing GPS query");
+    freeReturn(resp);
     return makeOkReturn();
 }
 
@@ -1121,11 +1129,13 @@ static slReturn  actionSaveConfig(const optionDef_slOptions* defs, const psloCon
     slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
         return usResp;
+    freeReturn(usResp);
 
     // save the GPS configuration...
     slReturn uscResp = ubxSaveConfig(cd->fdPort, cd->verbosity);
     if (isErrorReturn(uscResp))
         return makeErrorMsgReturn(ERR_CAUSE(uscResp), "problem saving GPS configuration");
+    freeReturn(uscResp);
 
     return makeOkReturn();
 }
@@ -1139,11 +1149,13 @@ static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* 
     slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
         return usResp;
+    freeReturn(usResp);
 
     // reset the GPS...
     slReturn urResp = ubxReset(cd->fdPort, cd->verbosity);
     if (isErrorReturn(urResp))
         return makeErrorMsgReturn(ERR_CAUSE(urResp), "problem resetting the GPS");
+    freeReturn(urResp);
 
     // the reset may restore the receiver's default port and NMEA configuration, so anything we
     // previously applied is no longer known to be in effect...
@@ -1162,11 +1174,13 @@ static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psl
     slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
         return usResp;
+    freeReturn(usResp);
 
     // configure the GPS...
     slReturn ucftResp = ubxConfigForTiming(cd->fdPort, cd->verbosity);
     if (isErrorReturn(ucftResp))
         return makeErrorMsgReturn(ERR_CAUSE(ucftResp), "problem configuring the GPS for timing");
+    freeReturn(ucftResp);
 
     return makeOkReturn();
 
@@ -1180,11 +1194,13 @@ static slReturn actionConfigSatellites(const optionDef_slOptions* defs, const ps
     slReturn usResp = syncAndApplyNMEA(cd);
     if (isErrorReturn(usResp))
         return usResp;
+    freeReturn(usResp);
 
     // configure the GPS...
     slReturn ucftResp = ubxConfigSatellites(cd->fdPort, cd->verbosity);
     if (isErrorReturn(ucftResp))
         return makeErrorMsgReturn(ERR_CAUSE(ucftResp), "problem configuring the GPS satellites");
+    freeReturn(ucftResp);
 
     return makeOkReturn();
 
