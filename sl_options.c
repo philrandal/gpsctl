@@ -875,6 +875,24 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
         // if we have an action function, call it...
         if( rec->def->action ) {
             slReturn result = rec->def->action( state.optDefs, config );
+
+            // If the action failed and the client supplied a recovery function, give it the chance to put things
+            // right (by reopening a serial port that has gone away, for instance) and then offer the action one
+            // more attempt.  A warning means the recovery declined to help, so the original failure stands...
+            if( isErrorReturn( result ) && config->recoverAction ) {
+                slReturn rr = config->recoverAction( state.optDefs, config );
+                if( isOkReturn( rr ) ) {
+                    freeReturn( rr );
+                    freeReturn( result );
+                    if( DEBUG) printf( "Retrying option action after recovery\n" );
+                    result = rec->def->action( state.optDefs, config );
+                }
+                else if( isErrorReturn( rr ) ) {
+                    freeReturn( result );
+                    result = rr;
+                }
+                else freeReturn( rr );
+            }
             EH( result, "action" )
         }
     }

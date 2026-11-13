@@ -136,6 +136,20 @@ extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
 }
 
 
+// Reports whether the given serial port has been hung up: the device has gone away (a USB serial adapter unplugged or
+// reset, for instance), or the far end of a pty pair has closed.  A hung-up port never produces data again and cannot
+// be reconfigured, so the only way back is to close it and open the device again.
+extern bool portHungUp( int fdPort ) {
+
+    if( fdPort < 0 ) return true;
+
+    // poll() reports a hangup, a fatal port error, or a bad file descriptor straight away, and requests nothing...
+    struct pollfd pfd = { .fd = fdPort, .events = 0, .revents = 0 };
+    if( poll( &pfd, 1, 0 ) < 0 ) return false;  // we can't tell, so give the port the benefit of the doubt...
+    return (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0;
+}
+
+
 typedef struct baudTrans {
     int baud;
     speed_t cookie;

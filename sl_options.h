@@ -63,6 +63,7 @@ struct psloConfig {
     char* version;                      // a client-defined string representing the version of the program
     char* addedInfo;                    // a client-defined string giving additional information about using the program
     int options;                        // options for the behavior of slOptions
+    action_slOptions* recoverAction;    // optional action function to call when one fails; returns Ok to retry it
 };
 
 bool hasShortOption_slOptions( char, const state_slOptions* );

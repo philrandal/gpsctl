@@ -948,6 +948,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     slReturn result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
     if (isErrorReturn(result)) {
         close(cd->fdPort);
+        cd->fdPort = -1;
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
 
@@ -955,6 +956,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     slReturn abResp = autoBaudRate(cd->fdPort, cd->minBaud, synchronizer, cd->verbosity);
     if (isErrorReturn(abResp)) {
         close(cd->fdPort);
+        cd->fdPort = -1;
         return makeErrorFmtMsgReturn(ERR_CAUSE(abResp), "problem while automatically determining baud rate");
     }
         
@@ -984,6 +986,7 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
     slReturn result = setTermOptions(cd->fdPort, cd->baud, 8, 1, false, false);
     if (isErrorReturn(result)) {
         close(cd->fdPort);
+        cd->fdPort = -1;
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
 
@@ -1001,7 +1004,8 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
     if (V2) printf("Changing baud rate to %d...\n", cd->newbaud);
     slReturn resp = ubxChangeBaudRate(cd->fdPort, (unsigned) cd->newbaud, cd->verbosity);
     if (isErrorReturn(resp)) {
-        close(cd->fdPort);
+        // ubxChangeBaudRate() leaves the port at a rate it can be used at, so there is nothing to gain by closing it
+        // here: that would only throw away a working port...
         return makeErrorMsgReturn(ERR_CAUSE(resp), "failed to change baud rate");
     }
     freeReturn(resp);
@@ -1255,6 +1259,47 @@ static slReturn  actionQuiet(const optionDef_slOptions* defs, const psloConfig* 
     return makeOkReturn();
 }
 
+// Opens the port named by cd->port and puts it into raw 8N1 mode, so that no echo, canonical processing, or line
+// editing gets between us and the protocols.  If no baud rate was specified, the port's current rate is kept: that is
+// best-effort, so that an autobaud run can still proceed if the current rate is unusual.
+static slReturn openSerialPort(const psloConfig* config) {
+
+    clientData_slOptions* cd = config->clientData;
+
+    int fdPort = open(cd->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
+    if (fdPort < 0)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "can't open \"%s\": %s", cd->port, strerror(errno));
+
+    // stuff our file descriptor in place...
+    cd->fdPort = fdPort;
+    if (V2) printf("Serial port (\"%s\") open...\n", cd->port);
+
+    // if we have no baud rate yet, keep whatever rate the port is already using...
+    int baud = cd->baud;
+    if (baud == 0) {
+        speedInfo si;
+        slReturn gsiResp = getSpeedInfo(fdPort, &si);
+        if (isErrorReturn(gsiResp)) {
+            if (V2) printReturn(gsiResp, true, false);
+            freeReturn(gsiResp);
+        }
+        else baud = si.baudRate;
+    }
+
+    // this is best-effort too, so that an autobaud run can still proceed if the port won't take these options...
+    if (baud != 0) {
+        slReturn stoResp = setTermOptions(fdPort, baud, 8, 1, false, false);
+        if (isErrorReturn(stoResp)) {
+            if (V2) printReturn(stoResp, true, false);
+            freeReturn(stoResp);
+        }
+    }
+
+    if (V2) printf("Serial port open and configured...\n");
+    return makeOkReturn();
+}
+
+
 // Setup action function, which opens and configures the serial port.
 static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* config) {
     clientData_slOptions* cd = config->clientData;
@@ -1268,36 +1313,12 @@ static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* c
     }
 
     // first we try opening the device for the port...
-    int fdPort = open(cd->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
-    if (fdPort < 0) {
-        printf("Failed to open serial port (\"%s\"): %s\n", cd->port,strerror(errno));
+    slReturn openResp = openSerialPort(config);
+    if (isErrorReturn(openResp)) {
+        printf("Error: %s\n", getReturnMsg(openResp));
         exit(1);
     }
-    if (V2) printf("Serial port (\"%s\") open...\n", cd->port);
-
-    // stuff our file descriptor and return in victory...
-    cd->fdPort = fdPort;
-    if (V2) printf("Serial port open and configured...\n");
-
-    // If no baud rate was specified, keep the port's current rate but still put it into raw 8N1
-    // mode.  Without this, echo and the synchronizers would run against the inherited canonical
-    // and echo settings, which buffer input and can echo received characters back to the GPS.
-    // This is best-effort so that an autobaud run can still proceed if the current rate is unusual.
-    if (cd->baud == 0) {
-        speedInfo si;
-        slReturn gsiResp = getSpeedInfo(fdPort, &si);
-        if (isErrorReturn(gsiResp)) {
-            if (V2) printReturn(gsiResp, true, false);
-            freeReturn(gsiResp);
-        }
-        else {
-            slReturn stoResp = setTermOptions(fdPort, si.baudRate, 8, 1, false, false);
-            if (isErrorReturn(stoResp)) {
-                if (V2) printReturn(stoResp, true, false);
-                freeReturn(stoResp);
-            }
-        }
-    }
+    freeReturn(openResp);
 
     // NOTE: NMEA configuration is deliberately not applied here. This runs before any baud
     // rate or autobaud option, so the UBX link is not yet usable. It is applied by the
@@ -1310,7 +1331,70 @@ static slReturn actionSetup(const optionDef_slOptions* defs, const psloConfig* c
 static slReturn actionTeardown(const optionDef_slOptions* defs, const psloConfig* config) {
 
     clientData_slOptions* cd = config->clientData;
-    close(cd->fdPort);
+    if (cd->fdPort >= 0) close(cd->fdPort);
+    cd->fdPort = -1;
+    return makeOkReturn();
+}
+
+
+// How long to wait for a serial device to come back after it has gone away, and how often to look for it...
+#define SERIAL_RETURN_MS   5000
+#define SERIAL_LOOK_MS      200
+
+
+// Waits for the serial device to become openable again, then opens it and puts it back into the mode that
+// openSerialPort() establishes.  The old file descriptor is hung up for good, so it is closed first: no amount of
+// flushing or reconfiguring can bring it back.
+static slReturn reopenSerialPort(const psloConfig* config) {
+
+    clientData_slOptions* cd = config->clientData;
+
+    if (cd->fdPort >= 0) close(cd->fdPort);
+    cd->fdPort = -1;
+
+    long long deadline = currentTimeMs() + SERIAL_RETURN_MS;
+    while (true) {
+
+        slReturn openResp = openSerialPort(config);
+        if (isOkReturn(openResp)) {
+            freeReturn(openResp);
+            return makeOkReturn();
+        }
+
+        if (currentTimeMs() >= deadline)
+            return makeErrorMsgReturn(ERR_CAUSE(openResp), "serial device did not come back");
+
+        freeReturn(openResp);
+        sleep_ns(SERIAL_LOOK_MS * 1000 * 1000);
+    }
+}
+
+
+// Recovery function for the action phase.  When an action fails because the serial port is no longer usable (it has
+// been hung up, because the device went away, or the action closed it behind us), wait for the device to come back,
+// reopen it, and ask for the action to be tried again.  Anything else is left alone: a warning says that the
+// original error stands, because reopening the port would not help it.
+static slReturn actionRecover(const optionDef_slOptions* defs, const psloConfig* config) {
+
+    clientData_slOptions* cd = config->clientData;
+
+    // only a port that is no longer usable can be helped by reopening it...
+    if (!portHungUp(cd->fdPort)) return makeWarningReturn();
+
+    if (V1) printf("Serial port (\"%s\") is not usable, reopening it...\n", cd->port);
+
+    slReturn reopenResp = reopenSerialPort(config);
+    if (isErrorReturn(reopenResp))
+        return makeErrorMsgReturn(ERR_CAUSE(reopenResp), "serial port is not usable and could not be reopened");
+    freeReturn(reopenResp);
+
+    // Whatever we knew about the link is stale: the device may have reset, and the receiver's configuration is
+    // whatever it saved, so the UBX synchronization has to be re-established, and the NMEA setting re-applied,
+    // before either can be trusted again...
+    cd->ubxSynchronized = false;
+    cd->nmeaApplied = false;
+
+    if (V1) printf("Serial port (\"%s\") reopened, retrying...\n", cd->port);
     return makeOkReturn();
 }
 
@@ -1572,7 +1656,8 @@ int main(int argc, char *argv[]) {
             "gpsctl",                                           // name of gpsctl...
             GPSCTL_VER,                                         // version of gpsctl...
             exampleText,                                        // usage examples...
-            SL_OPTIONS_CONFIG_NORMAL                            // slOptions configuration options...
+            SL_OPTIONS_CONFIG_NORMAL,                           // slOptions configuration options...
+            actionRecover                                       // action failure recovery function...
     };
 
     slReturn resp = process_slOptions(argc, (const char **) argv, &config);

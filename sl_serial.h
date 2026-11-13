@@ -22,6 +22,7 @@ slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer synchronize
 slReturn getSpeedInfo( int fdPort, speedInfo* );
 slReturn verifySerialDevice( const char *deviceName );
 slReturn readSerialChar( int fdPort, long long msTimeout );
+bool portHungUp( int fdPort );
 slReturn getBaudRate( int cookie );
 slReturn flushRx( int fdPort );
 slReturn setTermOptions( int fdPort, int baud, int dataBits, int stopBits, bool parityEnable, bool odd );
