@@ -121,11 +121,13 @@ extern int min_i( int a, int b ) {
 }
 
 
-// Returns the time since the epoch in milliseconds.
+// Returns the monotonic clock time in milliseconds.  The arithmetic is done in 64 bits: where time_t is 32 bits,
+// tv_sec * 1000L overflows a 32-bit long after about 24.8 days of uptime, which breaks every timeout calculation
+// that straddles the wrap.
 extern long long currentTimeMs() {
     struct timespec tp;
     clock_gettime( CLOCK_MONOTONIC, &tp );
-    return tp.tv_sec * 1000L + tp.tv_nsec / 1000000L;
+    return (long long) tp.tv_sec * 1000LL + tp.tv_nsec / 1000000LL;
 }
 
 
