@@ -123,6 +123,17 @@ static const optionDef_slOptions *findByStringOption( char *opt, const optionDef
 }
 
 
+// Returns the name of the given option (see getName_slOptions()) in a string that is owned by this function and stays
+// valid until the next call.  Used where the name is only needed as a temporary argument to a message, so that
+// early-return error paths do not leak the allocated name.
+static const char *tempName_slOptions( const optionDef_slOptions *def ) {
+    static char *last = NULL;
+    free( last );
+    last = getName_slOptions( def );
+    return last;
+}
+
+
 // Returns an error response with the given pattern and arguments resolved into a string.  Note that the errMsg value
 // in the response was allocated, and should be freed when no longer needed.
 static slReturn errorMessageHelper( errorInfo_slReturn error, bool debug, const char *class, const char *pattern, ... ) {
@@ -130,13 +141,15 @@ static slReturn errorMessageHelper( errorInfo_slReturn error, bool debug, const 
     // first we resolve the pattern we were given...
     va_list args;
     va_start( args, pattern );
-    char *resolved;
-    vasprintf( &resolved, pattern, args );
+    char *resolved = NULL;
+    int status = vasprintf( &resolved, pattern, args );
     va_end( args );
+    if( status < 0 ) resolved = NULL;
 
     // then we insert that into our pattern...
-    slReturn result = makeErrorFmtMsgReturn( error, "command line options processing error during %s phase: %s.", class, resolved );
-    if( debug ) printf( "Options processing error during %s phase: %s.\n", class, resolved );
+    const char *text = resolved ? resolved : "(out of memory)";
+    slReturn result = makeErrorFmtMsgReturn( error, "command line options processing error during %s phase: %s.", class, text );
+    if( debug ) printf( "Options processing error during %s phase: %s.\n", class, text );
     free( resolved );
 
     // return our bad news...
@@ -202,24 +215,24 @@ static slReturn validateConfig( const psloConfig *config ) {
         if((curDef->shortOpt != 0) && !isprint( curDef->shortOpt ))
             return errorMessageHelper(ERR_ROOT, debug, "validation",
                                        "option definition '%s' has an invalid short name with character code: %d",
-                                       getName_slOptions( curDef ), curDef->shortOpt );
+                                       tempName_slOptions( curDef ), curDef->shortOpt );
         if((curDef->longOpt != NULL) && (NULL != strchr( curDef->longOpt, '=' )))
             return errorMessageHelper(ERR_ROOT, debug, "validation",
                                        "option definition '%s' contains an equal sign (\"=\"): '%s'",
-                                       getName_slOptions( curDef ), curDef->longOpt );
+                                       tempName_slOptions( curDef ), curDef->longOpt );
         if((curDef->longOpt != NULL) && !issgraph( curDef->longOpt ))
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has an invalid long name: '%s'",
-                                       getName_slOptions( curDef ), curDef->longOpt );
+                                       tempName_slOptions( curDef ), curDef->longOpt );
         if((curDef->maxCount < 0) || (curDef->maxCount > MAX_SL_OPTIONS))
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has a maxCount out of range %d",
-                                       getName_slOptions( curDef ), curDef->maxCount );
+                                       tempName_slOptions( curDef ), curDef->maxCount );
         if( strempty( curDef->helpMsg ))
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has no help message specified",
-                                       getName_slOptions( curDef ));
+                                       tempName_slOptions( curDef ));
         if((curDef->arg != argNone) && strempty( curDef->argName ))
             return errorMessageHelper(ERR_ROOT, debug, "validation",
                                        "option definition '%s' can have an argument, but has no argument name specified",
-                                       getName_slOptions( curDef ));
+                                       tempName_slOptions( curDef ));
         if((curDef->shortOpt == ' ') && (curDef->arg != argNone))
             return errorMessageHelper(ERR_ROOT, debug, "validation", "single-hyphen option cannot have an argument" );
         if((curDef->shortOpt == ' ') && !strempty( curDef->longOpt ))
@@ -355,7 +368,7 @@ static slReturn helpAction( const optionDef_slOptions *defs, const psloConfig *c
     // if we were given additional info text, print it...
     if( config->addedInfo != NULL) {
         printf( "\n" );
-        printf( config->addedInfo );
+        printf( "%s", config->addedInfo );
     }
 
     return makeOkReturn();

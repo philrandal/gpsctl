@@ -115,8 +115,11 @@ static slReturn makeReturn( returnType type, errInfo error, void* info, const ch
 static slReturn makeFmtReturn( returnType type, errInfo error, void* info, const char* msg, va_list args ) {
 
     // first we format the string we were given, into allocated memory...
-    char* resolved;
-    vasprintf( &resolved, msg, args );
+    char* resolved = NULL;
+    if( vasprintf( &resolved, msg, args ) < 0 ) {
+        fprintf( stderr, "ERROR: vasprintf() failed\n" );
+        exit( 1 );
+    }
     return makeReturnInt( type, error, info, resolved, true );
 }
 
