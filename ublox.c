@@ -894,7 +894,6 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     fix->ground_speed_accuracy_mm_s        = get_uint32_slBuffer(body, 68);
     fix->heading_deg                       = get_int32_slBuffer(body, 64) * 1e-5;
     fix->heading_accuracy_deg              = get_uint32_slBuffer(body, 72) * 1e-5;
-    #undef body
     free(fixMsg.body);
     correctTime(fix);
 
@@ -1002,7 +1001,7 @@ extern slReturn ubxGetSatellites(int fdPort, int verbosity, ubxSatellites* satel
     slBuffer* body = create_slBuffer(0, LittleEndian);
     ubxMsg msg = createUbxMsg(type, body);
     ubxMsg satMsg;
-    slReturn nsResp = pollUbx(fdPort, msg, MON_VER_MAX_MS, &satMsg);
+    slReturn nsResp = pollUbx(fdPort, msg, NAV_SAT_MAX_MS, &satMsg);
     if (isErrorReturn(nsResp)) return nsResp;
     freeReturn(nsResp);
 

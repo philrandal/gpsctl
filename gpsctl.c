@@ -106,6 +106,11 @@ static slReturn setSyncMethod(const char* arg, clientData_slOptions* clientData)
     // if no argument was supplied, don't do anything at all...
     if (arg == NULL) return makeOkReturn();
 
+    // an empty argument would match the first method below (strncmp of zero characters always succeeds), so
+    // treat it as unrecognized instead...
+    if (*arg == 0)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "\"%s\" is not a recognized synchronization method", arg);
+
     // otherwise, try to match the argument...
     for (int i = 0; i < ARRAY_SIZE(syncTypeRecs); i++) {
         if (0 == strncmp(arg, syncTypeRecs[i].name, strlen(arg))) {
@@ -216,14 +221,16 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
 
     ubxFix fix = {0}; // zeroes all elements...
     slReturn result = ubxGetFix(clientData->fdPort, clientData->verbosity, &fix);
+    if (isErrorReturn(result))
+        return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining fix from GPS");
+    freeReturn(result);
+
+    // convert the units we have into the ones we want to show...
     double msl_height_feet = 0.00328084 * fix.height_above_sea_level_mm;
     double height_accuracy_feet = 0.00328084 * fix.height_accuracy_mm;
     double horizontal_accuracy_feet = 0.00328084 * fix.horizontal_accuracy_mm;
     double speed_mph = fix.ground_speed_mm_s * 0.00223694;
     double speed_accuracy_mph = fix.ground_speed_accuracy_mm_s * 0.00223694;
-    if (isErrorReturn(result))
-        return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining fix from GPS");
-    freeReturn(result);
 
     if (clientData->json) {
         cJSON* root   = cJSON_CreateObject();
