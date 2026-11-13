@@ -18,6 +18,7 @@
 #include <stdbool.h>
 #include <fcntl.h>
 #include <termios.h>
+#include <poll.h>
 #include <sys/stat.h>
 #include <errno.h>
 #include "sl_general.h"
@@ -89,34 +90,37 @@ extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
     unsigned char c;
     long long startTime = currentTimeMs();
 
-    int count = 0;
+    // Wait for data with poll() rather than spinning on read() with a short sleep.  The old loop called tcgetattr()
+    // (via getSpeedInfo) on every call and woke every half character time (about 5 microseconds at 921600 baud),
+    // which burned CPU and added latency.  poll() sleeps until a character arrives or the time runs out.
+    while( true ) {
 
-    // figure out how many nanoseconds to sleep between port queries...
-    speedInfo si;
-    slReturn gsiResp = getSpeedInfo( fdPort, &si );
-    if( isErrorReturn( gsiResp ) )
-        return makeErrorMsgReturn( ERR_CAUSE( gsiResp ), "could not get speed information" );
-    int sleepyNs = si.nsChar >> 1;
+        long long remainingMs = msTimeout - (currentTimeMs() - startTime);
+        if( remainingMs <= 0 ) break;  // we ran out of time...
 
-    // keep trying unless we run out of time...
-    while((currentTimeMs() - startTime) < msTimeout ) {
+        struct pollfd pfd = { .fd = fdPort, .events = POLLIN, .revents = 0 };
+        int pr = poll( &pfd, 1, (int) (remainingMs > INT_MAX ? INT_MAX : remainingMs) );
 
-        count++;
+        if( pr < 0 ) {
+            if( errno == EINTR ) continue;  // interrupted by a signal; just wait again for the time that's left...
+            return makeErrorFmtMsgReturn( ERR_ROOT, "poll() returned error: %s", strerror( errno ) );
+        }
+        if( pr == 0 ) break;  // timed out waiting for data...
 
-        // try to read a character...
+        // something is ready (a character, or an error/hangup that read() will report), so try to read a character...
         ssize_t rx_length = read( fdPort, &c, 1 );
-
-        // if we got an error, tell our caller...
-        if((rx_length < 0) && (errno != EAGAIN))
-            return makeErrorFmtMsgReturn( ERR_ROOT, "read() returned error: %s", strerror( errno ) );
 
         // if we read a character, return it...
         if( rx_length == 1 )
             return makeOkInfoReturn( char2info(c) );
 
-        // otherwise, we didn't read anything..
-        // delay a half character time before we try again...
-        sleep_ns( sleepyNs );
+        // end of file means the port went away; poll() would report it again immediately, so don't spin on it...
+        if( rx_length == 0 )
+            return makeErrorMsgReturn( ERR_ROOT, "read() hit end of file on the serial port" );
+
+        // a spurious wakeup or a signal is not an error; anything else is...
+        if( (errno != EAGAIN) && (errno != EINTR) )
+            return makeErrorFmtMsgReturn( ERR_ROOT, "read() returned error: %s", strerror( errno ) );
     }
 
     // if we get here, then we timed out...
