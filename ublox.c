@@ -229,6 +229,7 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
 
 // Waits for an ACK/NAK message.
 #define ACK_WAIT_MS 1500
+#define POLL_ACK_DRAIN_MS 250
 static slReturn ubxAckWait(int fdPort) {
 
     ubxMsg ackMsg;
@@ -298,22 +299,34 @@ static bool cmpUbxType(ubxType a, ubxType b) {
 // body is only allocated on an ok response.
 static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) {
 
+    // discard anything already sitting in the receiver before we ask our question: late replies to earlier
+    // polls (the synchronizer may send several before one succeeds) and NMEA remnants can be queued up, and
+    // we must not mistake one of them for the answer to this poll...
+    slReturn frResp = flushRx(fdPort);
+    freeReturn(frResp);
+
     // send the poll message...
     slReturn txResult = sendUbxMsg(fdPort, pollMsg);
     free(pollMsg.body);
     if (isErrorReturn(txResult)) return makeErrorMsgReturn(ERR_CAUSE(txResult), "Problem sending poll message");
 
     // A poll may be answered by more than one message, and the receiver is free to send them in any order.  It
-    // may also still have an ACK-ACK from an earlier command queued up.  So keep reading until we see the response
-    // we actually asked for, noting any ACK-ACK along the way...
+    // may also still have an ACK-ACK, or a reply to an earlier poll, queued up or in flight.  So keep reading
+    // until we see the response we actually asked for, noting any ACK-ACK along the way...
     long long startTime = currentTimeMs();
     bool gotAck = false;
+    ubxType unexpectedType = {0, 0};
+    bool sawUnexpected = false;
     while (true) {
 
         // work out what's left of our overall polling time, so that skipping stray messages can't extend it...
         long long remaining = max_ms - (currentTimeMs() - startTime);
-        if (remaining <= 0)
+        if (remaining <= 0) {
+            if (sawUnexpected)
+                return makeErrorFmtMsgReturn(ERR_ROOT, "received unexpected message type (0x%02x-0x%02x) in response to UBX poll",
+                                             unexpectedType.class, unexpectedType.id);
             return makeErrorMsgReturn(ERR_ROOT, "timed out while waiting for UBX poll response");
+        }
 
         // now get the next message...
         slReturn resp = rcvUbxMsg(fdPort, answer, (int) remaining);
@@ -339,23 +352,21 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
             continue;
         }
 
-        // or maybe we got complete garbage...
-        slReturn errResp = makeErrorFmtMsgReturn(ERR_ROOT, "received unexpected message type (0x%02x-0x%02x) in response to UBX poll",
-                                                 answer->type.class, answer->type.id);
+        // anything else is most likely a late reply to an earlier poll, so note it and keep waiting for our
+        // own response rather than giving up on it...
+        unexpectedType = answer->type;
+        sawUnexpected = true;
         free(answer->body);
         answer->body = NULL;
-        return errResp;
     }
 
-    // certain poll messages (notably configuration) ALSO send an ACK-ACK; if it did not arrive ahead of the
-    // response, get it now.  If it did, this poll's ACK has already been consumed and there is nothing left to wait for...
+    // certain poll messages (notably configuration) ALSO send an ACK-ACK, but the response itself already tells us
+    // the poll succeeded, so the ACK is best effort.  If it does show up, consume it so that it can't later be
+    // mistaken for the ACK of a set command; if it doesn't, so be it...
     if ((pollMsg.type.class == UBX_CFG) && !gotAck) {
-        slReturn ackResp = ubxAckWait(fdPort);
-        if (isErrorReturn(ackResp)) {
-            free(answer->body);
-            answer->body = NULL;
-            return makeErrorMsgReturn(ERR_CAUSE(ackResp), "Problem receiving expected ACK for poll");
-        }
+        ubxMsg ackMsg;
+        slReturn ackResp = rcvUbxMsg(fdPort, &ackMsg, POLL_ACK_DRAIN_MS);
+        if (isOkReturn(ackResp)) free(ackMsg.body);
         freeReturn(ackResp);
     }
 
