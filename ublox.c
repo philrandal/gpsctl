@@ -167,7 +167,8 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
                     count++;
                     continue;
                 }
-                count = 0;
+                // a byte that breaks the pair may itself be the first half of the next pair (B5 B5 62...), so keep it...
+                count = (c == UBX_SYNC1) ? 1 : 0;
             }
         }
         if (count < 2) continue;
