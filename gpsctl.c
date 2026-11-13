@@ -1006,6 +1006,9 @@ static slReturn actionNewBaud(const optionDef_slOptions* defs, const psloConfig*
     }
     freeReturn(resp);
 
+    // ubxChangeBaudRate() has verified the change, so keep our idea of the current baud rate in step with the port...
+    cd->baud = cd->newbaud;
+
     // the port is now usable at the new baud rate, so apply the configured NMEA setting (best effort)...
     applyNMEASettingBestEffort(cd);
 

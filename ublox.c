@@ -1491,9 +1491,32 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
 }
 
 
-extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verbosity) {
+// Polls the receiver's UART configuration and returns the baud rate it reports.  The host port must already be at
+// the rate the receiver is actually using, or there will be no valid answer.
+static slReturn pollUartBaudRate(int fdPort, unsigned int* baudRate) {
 
-    // first we poll for the current configuration...
+    ubxMsg pollMsg = createUbxMsg(ut_CFG_PRT, init_slBuffer(LittleEndian, 1 /* UBX_CFG_PRT_UART_ID */));
+    ubxMsg current;
+    slReturn pollAns = pollUbx(fdPort, pollMsg, CFG_PRT_MAX_MS, &current);
+    if (isErrorReturn(pollAns)) return pollAns;
+    freeReturn(pollAns);
+
+    slReturn sizeResp = validateBodySize(&current, 20, "CFG-PRT");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
+
+    *baudRate = get_uint32_slBuffer(current.body, 8);
+    free(current.body);
+    return makeOkReturn();
+}
+
+
+// Sends the receiver its UART configuration with the new baud rate, then moves the host to that rate.  The ACK is
+// only swallowed, never trusted: the receiver sends it at the old rate, so switching the host first can lose it,
+// and the ACK for an earlier CFG-PRT poll names the same message type, so it cannot be told apart from this one.
+static slReturn sendUartBaudRate(int fdPort, unsigned int newBaudRate) {
+
+    // poll for the current configuration, so that we change the baud rate and leave everything else alone...
     ubxMsg current;
     ubxMsg pollMsg = createUbxMsg(ut_CFG_PRT, init_slBuffer(LittleEndian, 1 /* UBX_CFG_PRT_UART_ID */));
     slReturn pollAns = pollUbx(fdPort, pollMsg, CFG_PRT_MAX_MS, &current);
@@ -1501,43 +1524,80 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
         return makeErrorMsgReturn(ERR_CAUSE(pollAns), "Problem polling for current configuration before changing baud rate");
     freeReturn(pollAns);
 
-    // update the baud rate in the configuration...
+    // update the baud rate in the configuration and send it back to the receiver...
     put_uint32_slBuffer(current.body, 8, newBaudRate);
-
-    // send out the message to change the baud rate...
     slReturn sendResp = sendUbxMsg(fdPort, createUbxMsg(ut_CFG_PRT, current.body));
     free(current.body);
     if (isErrorReturn(sendResp))
         return makeErrorMsgReturn(ERR_CAUSE(sendResp), "Problem sending message to change baud rate");
     freeReturn(sendResp);
 
-    // change our host's baud rate to the new one...
-    slReturn stoResp = setTermOptionsBaud(fdPort, newBaudRate);
+    // change our host's baud rate to the new one, then wait (best effort) for the ACK...
+    slReturn stoResp = setTermOptionsBaud(fdPort, (int) newBaudRate);
     if (isErrorReturn(stoResp))
         return makeErrorMsgReturn(ERR_CAUSE(stoResp), "Problem changing the host baud rate");
     freeReturn(stoResp);
 
-    // now get our ACK...
     slReturn ackResp = ubxAckWait(fdPort, ut_CFG_PRT);
-    bool gotAck = isOkReturn(ackResp);
     freeReturn(ackResp);
 
-    // sometimes we don't get the ACK, likely hosed by the baud rate change...
-    // so in that case we'll query the port and see what we actually have...
-    if (!gotAck) {
+    return makeOkReturn();
+}
 
-        // poll the current configuration again...
-        if (verbosity > 1) printf("ACK missing, repolling for status...\n");
-        ubxMsg repollResp;
-        ubxMsg repollMsg = createUbxMsg(ut_CFG_PRT, init_slBuffer(LittleEndian, 1 /* UBX_CFG_PRT_UART_ID */));
-        slReturn pollResp = pollUbx(fdPort, repollMsg, CFG_PRT_MAX_MS, &repollResp);
-        if (isErrorReturn(pollResp))
-            return makeErrorMsgReturn(ERR_CAUSE(pollResp), "Problem on second attempt to verify changed baud rate");
-        freeReturn(pollResp);
-        free(repollResp.body);
+
+// Changes both the receiver's UART baud rate and the host's, and proves that it worked.  An ACK proves nothing on
+// its own: the receiver may acknowledge a command it has not applied, and that ACK is easily lost when the host
+// switches rate.  So the new rate is confirmed by asking the receiver what it is actually using, and a missing
+// answer is asked for again before it is believed, because the receiver can be briefly deaf at the new rate.  Only
+// if it still won't confirm is the host put back where the receiver is and the change sent once more; if that fails
+// too the host is left there, so that the port is still usable.
+extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verbosity) {
+
+    // find out where we are now, both to report it and so that the host can be put back there if the change fails...
+    unsigned int oldBaudRate = 0;
+    slReturn oldResp = pollUartBaudRate(fdPort, &oldBaudRate);
+    if (isErrorReturn(oldResp))
+        return makeErrorMsgReturn(ERR_CAUSE(oldResp), "Problem polling for current configuration before changing baud rate");
+    freeReturn(oldResp);
+
+    if (verbosity >= 3) printf("GPS UART is currently at %u baud...\n", oldBaudRate);
+
+    for (int attempt = 0; attempt < 2; attempt++) {
+
+        // send the new configuration and move the host to the new rate...
+        slReturn changeResp = sendUartBaudRate(fdPort, newBaudRate);
+        if (isErrorReturn(changeResp))
+            return makeErrorMsgReturn(ERR_CAUSE(changeResp), "Problem changing the baud rate");
+        freeReturn(changeResp);
+
+        // Ask the receiver what rate it is actually using now, and believe only that.  The first exchange at the new
+        // rate can be lost, so ask twice before concluding that the change didn't take...
+        bool verified = false;
+        for (int ask = 0; (ask < 2) && !verified; ask++) {
+
+            unsigned int actualBaudRate = 0;
+            slReturn verifyResp = pollUartBaudRate(fdPort, &actualBaudRate);
+            verified = isOkReturn(verifyResp) && (actualBaudRate == newBaudRate);
+            freeReturn(verifyResp);
+
+            if (!verified && (ask == 0) && (verbosity >= 2))
+                printf("No confirmation at %u baud, asking again...\n", newBaudRate);
+        }
+
+        if (verified) {
+            if (verbosity >= 1) printf("Successfully changed baud rate to %u...\n", newBaudRate);
+            return makeOkReturn();
+        }
+
+        // the change didn't take, so put the host back where the receiver still is.  That leaves a usable port for
+        // the retry, and for the caller if this was the last attempt...
+        if (verbosity >= 2)
+            printf("GPS did not change to %u baud, %s...\n", newBaudRate, (attempt == 0) ? "retrying" : "giving up");
+        slReturn backResp = setTermOptionsBaud(fdPort, (int) oldBaudRate);
+        if (isErrorReturn(backResp))
+            return makeErrorMsgReturn(ERR_CAUSE(backResp), "Problem restoring the host baud rate after a failed change");
+        freeReturn(backResp);
     }
 
-    if (verbosity >= 1) printf("Successfully changed baud rate to %d...\n", newBaudRate);
-
-    return makeOkReturn();
+    return makeErrorFmtMsgReturn(ERR_ROOT, "GPS did not change to %u baud (it is still at %u)", newBaudRate, oldBaudRate);
 }

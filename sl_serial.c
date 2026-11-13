@@ -114,13 +114,21 @@ extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
         if( rx_length == 1 )
             return makeOkInfoReturn( char2info(c) );
 
-        // end of file means the port went away; poll() would report it again immediately, so don't spin on it...
+        // A zero-length read means the kernel has hung the port up: the device went away (a USB serial adapter
+        // unplugged or reset, for instance).  Say that plainly, because further up this otherwise looks like a
+        // baud rate or protocol problem, which it isn't.  poll() would report it again immediately, so don't spin
+        // on it either...
         if( rx_length == 0 )
-            return makeErrorMsgReturn( ERR_ROOT, "read() hit end of file on the serial port" );
+            return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
 
         // a spurious wakeup or a signal is not an error; anything else is...
         if( (errno != EAGAIN) && (errno != EINTR) )
             return makeErrorFmtMsgReturn( ERR_ROOT, "read() returned error: %s", strerror( errno ) );
+
+        // poll() also reports a hangup or a fatal port error, sometimes without any data to go with it: if that
+        // is all there is, there is nothing left to wait for...
+        if( pfd.revents & (POLLERR | POLLHUP | POLLNVAL) )
+            return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
     }
 
     // if we get here, then we timed out...
