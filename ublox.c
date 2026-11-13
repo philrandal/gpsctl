@@ -919,10 +919,19 @@ extern slReturn ubxGetSatellites(int fdPort, int verbosity, ubxSatellites* satel
     slReturn nsResp = pollUbx(fdPort, msg, MON_VER_MAX_MS, &satMsg);
     if (isErrorReturn(nsResp)) return nsResp;
 
-    // now decode our message, starting with the number of satellites...
+    // now decode our message, starting with the number of satellites...  The body comes from the device, so never
+    // trust its satellite count further than the body can actually hold (8 header bytes, then 12 per satellite)...
     void* b = satMsg.body;
     ubxSatellites* ss = satellites;
+    size_t bodySize = size_slBuffer(satMsg.body);
+    if (bodySize < 8) {
+        free(satMsg.body);
+        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected NAV-SAT message body size: %zu bytes", bodySize);
+    }
     ss->numberOfSatellites = get_uint8_slBuffer(b, 5);
+    int maxSatellites = (int) ((bodySize - 8) / 12);
+    if (ss->numberOfSatellites > maxSatellites)
+        ss->numberOfSatellites = maxSatellites;
 
     // make a place to store our results...
     ss->satellites = safeMalloc(ss->numberOfSatellites * sizeof(ubxSatellite));
