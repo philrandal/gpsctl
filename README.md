@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 1.29</b></h1>
+<h1 align="center"><b>gpsctl 1.30</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
@@ -52,6 +52,7 @@ The only dependencies *gpsctl* has (other than the standard C library) is on the
 ## Why is *gpsctl*'s code so awful?
 Mainly because this is the first C program the author has written in over 30 years, but also because the author
 has serious deficiencies in aptitude, intelligence, and knowledge (not to mention choices of hobbies).
+You can also blame Claude and DeepSeek for making things better or worse, if you want.
 
 ## How is *gpsctl* licensed?
 *gpsctl* is licensed with the quite permissive MIT license:
