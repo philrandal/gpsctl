@@ -1,3 +1,19 @@
+2026-11-13 - Phil Randal and Claude - Release 1.28
+    Make --help, --version and -U work without a serial port. 
+       They now exit 0 on a machine with no /dev/serial0. Before, they exited 1.
+    Fix frame sync when a stray B5 comes right before a real frame (B5 B5 62 …).
+        That frame is now received; before, it was dropped.
+    Zero-fill new buffers in create_slBuffer, so no uninitialised bytes get through.
+    Do the currentTimeMs arithmetic in 64 bits. Affects 32-bit architectures only.
+    Clear the stale checksum tail when a new $ starts.
+        Before, a bad-checksum line followed by an empty line could report the NMEA
+        synchronizer as locked. Valid sentences still lock.
+    Check the NAV-SAT body size and clamps the satellite count to what the message actually holds.
+        A body shorter than 8 bytes is now rejected. Before, a claimed count of 200 with 2 
+        satellites present was accepted.
+    Fix minor error message bugs.
+    Retry a timed-out UBX sync twice, so three attempts in all.
+
 2026-11-13 - Phil Randal and Claude and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
     Various bug fixes
     Fix NMEA initialisation
