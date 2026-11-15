@@ -617,15 +617,15 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
         printf("    Antenna cable delay:          %d nanoseconds\n",          config.antCableDelayNs);
         printf("    RF group delay:               %d nanoseconds\n",          config.rfGroupDelayNs);
         if (config.isFreq) {
-            printf("    Locked pulse frequency:       %d Hz\n",               config.freqPeriodLock);
-            printf("    Unlocked pulse frequency:     %d Hz\n",               config.freqPeriod);
+            printf("    Locked pulse frequency:       %u Hz\n",               config.freqPeriodLock);
+            printf("    Unlocked pulse frequency:     %u Hz\n",               config.freqPeriod);
         } else {
-            printf("    Locked pulse period:          %d microseconds\n",     config.freqPeriodLock);
-            printf("    Unlocked pulse period:        %d microseconds\n",     config.freqPeriod);
+            printf("    Locked pulse period:          %u microseconds\n",     config.freqPeriodLock);
+            printf("    Unlocked pulse period:        %u microseconds\n",     config.freqPeriod);
         }
         if (config.isLength) {
-            printf("    Locked pulse length:          %d microseconds\n",     config.pulseLenRatioLock);
-            printf("    Unlocked pulse length:        %d microseconds\n",     config.pulseLenRatio);
+            printf("    Locked pulse length:          %u microseconds\n",     config.pulseLenRatioLock);
+            printf("    Unlocked pulse length:        %u microseconds\n",     config.pulseLenRatio);
         } else {
             printf("    Locked pulse duty cycle:      %.2f%%\n",              config.pulseLenRatioLock * 0.000000023283064);
             printf("    Unlocked pulse duty cycle:    %.2f%%\n",              config.pulseLenRatio * 0.000000023283064);
