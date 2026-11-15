@@ -10,7 +10,10 @@ Type=oneshot
 Environment="PARAMS=-q -a -B 115200 --configure_for_timing"
 EnvironmentFile=-/etc/default/gpsctl
 ExecStart=/bin/bash -c '/usr/local/bin/gpsctl ${PARAMS}'
-Restart=OnFailure
+Restart=on-failure
+RestartSec=15
+StartLimitBurst=3
+StartLimitIntervalSec=60
 
 [Install]
 WantedBy=multi-user.target
