@@ -413,9 +413,11 @@ static slReturn doSatelliteQuery(const clientData_slOptions* clientData) {
     }
     else {
 
-        // print out our column headers...
-        printf("\n%-8s%3s %3s %3s %3s %5s %-20s%-8s%-15sFlags\n", "GNSS",     "ID", "CNo",  "El", "Azi",   "PRr", "Signal qual",         "Sat Hlt", "Orbit Src");
-        printf("%-8s%3s %3s %3s %3s %5s %-20s%-8s%-15s=====\n",  "=======", "===", "===", "===", "===", "=====", "===================", "=======", "==============");
+        // print out our column headers.  The PRr (pseudorange residual) column is wide enough for any value the
+        // receiver can report - an int16 in tenths of a metre, so -3276.8 to 3276.7 - because a negative residual
+        // is one character wider than a positive one, and at a width of five it shoved the rest of the row along...
+        printf("\n%-8s%3s %3s %3s %3s %7s %-20s%-8s%-15sFlags\n", "GNSS",     "ID", "CNo",  "El", "Azi",   "PRr", "Signal qual",         "Sat Hlt", "Orbit Src");
+        printf("%-8s%3s %3s %3s %3s %7s %-20s%-8s%-15s=====\n",  "=======", "===", "===", "===", "===", "=======", "===================", "=======", "==============");
 
         // now print out all our satellites...
         for (int i = 0; i < satellites.numberOfSatellites; i++) {
@@ -436,7 +438,7 @@ static slReturn doSatelliteQuery(const clientData_slOptions* clientData) {
             if (flags == NULL)    append(&flags, "");
 
             // print our satellite line...
-            printf("%-8s%3d %3d %3d %3d %5.1f %-20s%-8s%-15s%s\n",
+            printf("%-8s%3d %3d %3d %3d %7.1f %-20s%-8s%-15s%s\n",
                     getGnssName(s->gnssID), s->satelliteID, s->cno, s->elevation, s->azimuth, s->pseudoRangeResidualM,
                     getSignalQuality(s->signalQuality), getSatelliteHealth(s->health), getOrbitSource(s->orbitSource), flags);
 
