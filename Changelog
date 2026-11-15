@@ -1,3 +1,15 @@
+2026-11-15 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.33
+    Wait for every byte of a message to be sent, rather than giving up on a partial write.
+    Report a hung-up serial port as such, rather than as a failure to write.
+    Check the size of each configuration reply before using it, so a short reply is reported
+        rather than decoded as a zeroed configuration.
+    Reopen the port during recovery only when it really works again, not merely when it opens.
+    Fix a memory leak when an option name is generated.
+    Widen the PRr column in the satellite table, which a negative residual pushed out of line.
+    Run gpsctl up to three times at boot, 15 seconds apart, and log the errors.
+        The unit no longer uses Restart=, which left a failed unit behind and could reach the
+        start limit before the retries were done.
+
 2026-11-15 - Phil Randal and Claude Code - Release 1.31
     Add retry if serial port fails
     Another memory leak patched
