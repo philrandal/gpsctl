@@ -1,10 +1,14 @@
+2026-11-15 - Phil Randal and Claude Code - Release 1.31
+    Add retry if serial port fails
+    Another memory leak patched
+
 2026-11-13 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.30
     More sync error fixes
 
 2026-11-13 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.29
     Better fix for sync errors
 
-2026-11-13 - Phil Randal and Claude - Release 1.28
+2026-11-13 - Phil Randal and Claude Code - Release 1.28
     Make --help, --version and -U work without a serial port. 
        They now exit 0 on a machine with no /dev/serial0. Before, they exited 1.
     Fix frame sync when a stray B5 comes right before a real frame (B5 B5 62 …).
@@ -20,16 +24,16 @@
     Fix minor error message bugs.
     Retry a timed-out UBX sync twice, so three attempts in all.
 
-2026-11-13 - Phil Randal and Claude and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
+2026-11-13 - Phil Randal and Claude Code and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
     Various bug fixes
     Fix NMEA initialisation
     Optimise serial reads using poll() (thanks, Claude)
    
-2026-11-12 - Phil Randal and Claude - Release 1.24
+2026-11-12 - Phil Randal and Claude Code - Release 1.24
     Various double free, buffer overflow, null pointer dereference fixes, etc via Claude AI
     Fix ubxReset parameters (Claude AI)
 
-2026-11-11 - Phil Randal and Claude AI - Release 1.23
+2026-11-11 - Phil Randal and Claude Code - Release 1.23
     Fix null pointer dereferences and potential heap overflow (thanks, Claude)
     Refactor clientData references to use consistent pointer name 'cd' instead of 'clientData'
 
