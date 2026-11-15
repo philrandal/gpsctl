@@ -1,3 +1,6 @@
+2026-11-15 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.34
+    Fix auto-baudrate detection logic
+
 2026-11-15 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.33
     Wait for every byte of a message to be sent, rather than giving up on a partial write.
     Report a hung-up serial port as such, rather than as a failure to write.
