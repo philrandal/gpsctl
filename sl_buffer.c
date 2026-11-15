@@ -50,7 +50,7 @@ extern slBuffer* init_slBuffer_int( size_t size, Endiness endiness, ... ) {
     if( size != 0 ) {
         va_list argPtr;
         va_start( argPtr, endiness );
-        for (int i = 0; i < size; i++) {
+        for (size_t i = 0; i < size; i++) {
             byte b = (byte) va_arg( argPtr, int );
             result->buffer[i] = b;
         }
@@ -73,7 +73,7 @@ extern slBuffer* copy_slBuffer( size_t size, Endiness endiness, byte *buffer ) {
 extern void print_slBuffer( slBuffer *buffer ) {
     char* endy = (buffer->endiness == LittleEndian) ? "little-endian" : "big-endian";
     printf( "slBuffer, %d bytes, %s:", (int) buffer->size, endy );
-    for( int i = 0; i < buffer->size; i++ )
+    for( size_t i = 0; i < buffer->size; i++ )
         printf( "%02x:", buffer->buffer[i] );
     printf( "\n" );
 }

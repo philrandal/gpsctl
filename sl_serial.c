@@ -391,20 +391,12 @@ extern slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbos
 // the host's port set to that baud rate.  If if fails to find a baud rate, returns an error.
 extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer synchronizer, int verbosity ) {
 
-    // we're going to allow 250 character times, or 4 seconds, whichever is greater...
-    speedInfo si;
-    // this code block is in the wrong place, IMHO, and should be in the loop below
-    // However, a timeout of 4 seconds is OK for our purposes here, so I'm leaving it - PR
-    slReturn gsiResp = getSpeedInfo( fdPort, &si );
-    if( isErrorReturn( gsiResp ) )
-        return makeErrorMsgReturn( ERR_CAUSE( gsiResp ), "problem getting speed information" );
-    long long maxMsLL = max_ll( 4000LL, (long long) si.nsChar * 250 / 1000000 );
-    int maxMs = (maxMsLL > INT_MAX) ? INT_MAX : (int) maxMsLL;
-
     int bauds[] = { 921600, 460800, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400,
                     1800, 1200, 600, 300, 200, 150, 134, 110, 75, 50   };
 
-    if( verbosity >= 3 ) printf( "Trying baud rates from 921600 to %d...\n", minBaud );
+    // at low verbosity only the root message is printed, and it doesn't say which rates were tried, so say it
+    // here - this is the only place that can...
+    if( verbosity >= 1 ) printf( "Trying baud rates from 921600 to %d...\n", minBaud );
 
     for( int i = 0; (i < ARRAY_SIZE( bauds ) ) && (bauds[i] >= minBaud); i++ ) {
 
@@ -415,6 +407,19 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         if( isErrorReturn( stobResp ) )
             return makeErrorFmtMsgReturn( ERR_CAUSE( stobResp ), "problem trying to set baud rate to %d", bauds[i] );
 
+        // Now that the port is at the rate we are about to try, work out how long to give the synchronizer: 250
+        // character times, or 4 seconds, whichever is greater.  This has to be done here, after the rate change,
+        // because it is the rate being tried - not whatever rate the port was left at - that says how long the
+        // characters take to arrive.  At 50 baud, 25 characters take five seconds, so a four-second budget would
+        // never see them, and the slowest rates could never synchronize...
+        speedInfo si;
+        slReturn gsiResp = getSpeedInfo( fdPort, &si );
+        if( isErrorReturn( gsiResp ) )
+            return makeErrorMsgReturn( ERR_CAUSE( gsiResp ), "problem getting speed information" );
+        freeReturn( gsiResp );
+        long long maxMsLL = max_ll( 4000LL, (long long) si.nsChar * 250 / 1000000 );
+        int maxMs = (maxMsLL > INT_MAX) ? INT_MAX : (int) maxMsLL;
+
         // try to synchronize on it...
         slReturn syncResp = synchronizer( fdPort, maxMs, verbosity );
         if( isErrorReturn( syncResp ) )
@@ -422,7 +427,7 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         bool synchronized = getReturnInfoBool( syncResp );
         freeReturn( syncResp );
         if( synchronized ) {
-            if( verbosity >= 2 ) printf( "Synchronized on %d baud...\n", bauds[i] );
+            if( verbosity >= 1 ) printf( "Synchronized on %d baud...\n", bauds[i] );
             return makeOkInfoReturn(int2info( bauds[i] ));
         }
     }
