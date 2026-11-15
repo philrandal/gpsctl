@@ -292,17 +292,25 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
                      (byte)(size_slBuffer(msg.body) >> 8)
     };
 
-    if (sizeof(buff) != write(fdPort, buff, sizeof(buff)))
-        return makeErrorFmtMsgReturn(ERR_ROOT, "error writing UBX message header: %s", strerror(errno));
+    // the writes below may take only part of what they are given, or none of it, and the rest still has to go out:
+    // a half-sent message would leave the receiver waiting for an end that never comes...
+    slReturn hdrResp = writeSerialData(fdPort, buff, sizeof(buff));
+    if (isErrorReturn(hdrResp))
+        return makeErrorMsgReturn(ERR_CAUSE(hdrResp), "error writing UBX message header");
+    freeReturn(hdrResp);
 
     // then we send out the body itself...
-    if (size_slBuffer(msg.body) != write(fdPort, buffer_slBuffer(msg.body), size_slBuffer(msg.body)))
-        return makeErrorFmtMsgReturn(ERR_ROOT, "error writing UBX message body: %s", strerror(errno));
+    slReturn bodyResp = writeSerialData(fdPort, buffer_slBuffer(msg.body), size_slBuffer(msg.body));
+    if (isErrorReturn(bodyResp))
+        return makeErrorMsgReturn(ERR_CAUSE(bodyResp), "error writing UBX message body");
+    freeReturn(bodyResp);
 
     // and finally, out goes the checksum...
     byte buffChk[2] = {msg.checksum.ck_a, msg.checksum.ck_b};
-    if (sizeof(buffChk) != write(fdPort, buffChk, sizeof(buffChk)))
-        return makeErrorFmtMsgReturn(ERR_ROOT, "error writing UBX message checksum: %s", strerror(errno));
+    slReturn chkResp = writeSerialData(fdPort, buffChk, sizeof(buffChk));
+    if (isErrorReturn(chkResp))
+        return makeErrorMsgReturn(ERR_CAUSE(chkResp), "error writing UBX message checksum");
+    freeReturn(chkResp);
 
     // now we wait for everything to actually be sent...
     if (tcdrain(fdPort))

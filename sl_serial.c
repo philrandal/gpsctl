@@ -136,6 +136,59 @@ extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
 }
 
 
+// Writes all of the given data to the given serial port.  The port is non-blocking, so write() can take only part of
+// the data - or none of it at all, when the buffer is full - and neither is an error: the rest still has to go out,
+// because a half-written message leaves the receiver waiting for an end that never comes.  Waits for the port to drain
+// a little whenever it is full, and gives up only on a real error, or if nothing at all can be written for a second.
+#define WRITE_WAIT_MS 1000
+extern slReturn writeSerialData( int fdPort, const void* data, size_t length ) {
+
+    if( fdPort < 0 ) return makeErrorMsgReturn( ERR_ROOT, "invalid serial port file descriptor" );
+
+    const unsigned char* ptr = data;
+    size_t remaining = length;
+    long long startTime = currentTimeMs();
+
+    while( remaining > 0 ) {
+
+        ssize_t written = write( fdPort, ptr, remaining );
+
+        // if the port took some of it, keep going with the rest.  Data is moving, so restart the clock: a slow but
+        // working port must not time out while it is still making progress...
+        if( written > 0 ) {
+            ptr += written;
+            remaining -= (size_t) written;
+            startTime = currentTimeMs();
+            continue;
+        }
+
+        // a zero-length write means the port took nothing after all; together with an interrupted or would-block
+        // write, that is something to wait for.  Anything else is a real error...
+        if( (written < 0) && (errno != EAGAIN) && (errno != EINTR) )
+            return makeErrorFmtMsgReturn( ERR_ROOT, "write() returned error: %s", strerror( errno ) );
+
+        // the port has no room right now, so wait for it to drain...
+        long long remainingMs = WRITE_WAIT_MS - (currentTimeMs() - startTime);
+        if( remainingMs <= 0 )
+            return makeErrorMsgReturn( ERR_ROOT, "timed out waiting to write to serial port" );
+
+        struct pollfd pfd = { .fd = fdPort, .events = POLLOUT, .revents = 0 };
+        int pr = poll( &pfd, 1, (int) remainingMs );
+        if( pr < 0 ) {
+            if( errno == EINTR ) continue;  // interrupted by a signal; just wait again for the time that's left...
+            return makeErrorFmtMsgReturn( ERR_ROOT, "poll() returned error: %s", strerror( errno ) );
+        }
+        if( pr == 0 ) return makeErrorMsgReturn( ERR_ROOT, "timed out waiting to write to serial port" );
+
+        // a hangup or a fatal port error means the device has gone away, and no amount of waiting will bring it back...
+        if( pfd.revents & (POLLERR | POLLHUP | POLLNVAL) )
+            return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
+    }
+
+    return makeOkReturn();
+}
+
+
 // Reports whether the given serial port has been hung up: the device has gone away (a USB serial adapter unplugged or
 // reset, for instance), or the far end of a pty pair has closed.  A hung-up port never produces data again and cannot
 // be reconfigured, so the only way back is to close it and open the device again.
