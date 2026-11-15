@@ -271,8 +271,8 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
     }
     else {
         if (fix.time_resolved && fix.time_valid && fix.date_valid)
-            printf(" Time (UTC): %04d-%02d-%02d %02d:%02d:%02.0f (yyyy-mm-dd hh:mm:ss)\n",
-                    fix.year, fix.month, fix.day, fix.hour, fix.minute, fix.second);
+            printf(" Time (UTC): %04d-%02d-%02d %02d:%02d:%02d (yyyy-mm-dd hh:mm:ss)\n",
+                    fix.year, fix.month, fix.day, fix.hour, fix.minute, (int) fix.second);
         else
             printf(" Time (UTC): not resolved or not valid\n");
         if (fix.fix_valid) {
@@ -286,8 +286,8 @@ static slReturn doFixQuery(const clientData_slOptions* clientData) {
         }
         else
             printf("        Fix: invalid\n");
-        printf(" Satellites: %d used for computing this fix\n", fix.number_of_satellites_used);
-        printf("   Accuracy: time (%d ns), height (+/-%.3f feet), position (+/-%.3f feet), heading(+/-%.3f degrees), speed(+/-%.3f mph)\n",
+        printf(" Satellites: %u used for computing this fix\n", fix.number_of_satellites_used);
+        printf("   Accuracy: time (%u ns), height (+/-%.3f feet), position (+/-%.3f feet), heading(+/-%.3f degrees), speed(+/-%.3f mph)\n",
                 fix.time_accuracy_ns, height_accuracy_feet, horizontal_accuracy_feet, fix.heading_accuracy_deg, speed_accuracy_mph);
     }
 

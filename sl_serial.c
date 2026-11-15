@@ -426,6 +426,5 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
             return makeOkInfoReturn(int2info( bauds[i] ));
         }
     }
-    printf( "Could not synchronize on any baud rate...\n" );
     return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 921600 to %d", minBaud );
 }

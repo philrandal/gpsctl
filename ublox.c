@@ -750,6 +750,9 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
     if (isErrorReturn(tp5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(tp5Resp), "problem getting time pulse information from GPS");
     freeReturn(tp5Resp);
+    slReturn tp5Size = validateBodySize(&tp5Msg, 32, "CFG-TP5");
+    if (isErrorReturn(tp5Size)) return tp5Size;
+    freeReturn(tp5Size);
 
     // make the changes we need to make...
     slBuffer* b = tp5Msg.body;
@@ -785,6 +788,9 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     if (isErrorReturn(nav5Resp))
         return makeErrorMsgReturn(ERR_CAUSE(nav5Resp), "problem getting navigation engine information from GPS");
     freeReturn(nav5Resp);
+    slReturn nav5Size = validateBodySize(&nav5Msg, 36, "CFG-NAV5");
+    if (isErrorReturn(nav5Size)) return nav5Size;
+    freeReturn(nav5Size);
 
     // make our changes...
     slBuffer* b = nav5Msg.body;
