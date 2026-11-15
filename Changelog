@@ -7,8 +7,6 @@
     Fix a memory leak when an option name is generated.
     Widen the PRr column in the satellite table, which a negative residual pushed out of line.
     Run gpsctl up to three times at boot, 15 seconds apart, and log the errors.
-        The unit no longer uses Restart=, which left a failed unit behind and could reach the
-        start limit before the retries were done.
 
 2026-11-15 - Phil Randal and Claude Code - Release 1.31
     Add retry if serial port fails
