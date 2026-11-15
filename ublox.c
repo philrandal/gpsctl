@@ -64,6 +64,9 @@ typedef struct ubxMsg {
     ubxChecksum checksum;
 } ubxMsg;
 
+// Forward declaration: the body-size check is defined below the message decoders that use it...
+static slReturn validateBodySize(ubxMsg* msg, size_t minSize, const char* name);
+
 
 static void updateUbxChecksum(byte b, ubxChecksum *checksum) {
     checksum->ck_a += b;
@@ -468,6 +471,12 @@ extern slReturn isNMEAmsgEnabled(int fdPort, int verbosity, nmeaMSG messageID) {
     slReturn resp = pollUbx(fdPort, poll, CFG_NMEA_MAX_MS, &current);
     if (isErrorReturn(resp)) return resp;
     freeReturn(resp);
+
+    // The body comes from the device, so never trust it: the rate for UART1 is the fourth byte, and a reply too short
+    // to hold that byte would otherwise read as "disabled", reporting a configuration the receiver never sent...
+    slReturn sizeResp = validateBodySize(&current, 4, "CFG-MSG");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
 
     bool state =  get_uint8_slBuffer(current.body, 3);
     free(current.body);
@@ -1158,6 +1167,12 @@ static slReturn isNmeaOn(int fdPort) {
     if (isErrorReturn(resp)) return resp;
     freeReturn(resp);
 
+    // The body comes from the device, so never trust it: the UART flags are bytes 14 and 15, and a reply too short to
+    // hold them would otherwise read as "NMEA off", reporting a configuration the receiver never sent...
+    slReturn sizeResp = validateBodySize(&current, 16, "CFG-PRT");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
+
     bool state =  isBitSet_slBits(get_uint16_slBuffer(current.body, 14), 1);
     free(current.body);
     return makeOkInfoReturn(bool2info(state));
@@ -1471,6 +1486,12 @@ extern slReturn ubxSetNMEAData(int fdPort, int verbosity, bool nmeaOn) {
     if (isErrorReturn(resp)) return resp;
     freeReturn(resp);
 
+    // The body comes from the device and goes straight back to it, so it must be complete: the UART flags are bytes
+    // 14 and 15, and a short body would otherwise be sent back as a truncated (and so rejected) configuration...
+    slReturn sizeResp = validateBodySize(&current, 20, "CFG-PRT");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
+
     // now change the bit we need to diddle...
     slBuffer *bdy = current.body;
     put_uint16_slBuffer(bdy, 14, (uint16_t) setBit_slBits(get_uint16_slBuffer(bdy, 14), 1, nmeaOn));
@@ -1523,6 +1544,12 @@ static slReturn sendUartBaudRate(int fdPort, unsigned int newBaudRate) {
     if (isErrorReturn(pollAns))
         return makeErrorMsgReturn(ERR_CAUSE(pollAns), "Problem polling for current configuration before changing baud rate");
     freeReturn(pollAns);
+
+    // this body goes straight back to the receiver, so it must be complete: the baud rate is bytes 8 to 11, and a short
+    // body would otherwise be sent back unchanged, and reported as a failed change...
+    slReturn sizeResp = validateBodySize(&current, 20, "CFG-PRT");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
 
     // update the baud rate in the configuration and send it back to the receiver...
     put_uint32_slBuffer(current.body, 8, newBaudRate);

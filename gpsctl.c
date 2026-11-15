@@ -1234,7 +1234,7 @@ static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* c
 
     // figure out our timing...
     long long startTime = currentTimeMs();
-    long long maxEchoMS = 1000 * cd->echoSeconds;
+    long long maxEchoMS = 1000LL * cd->echoSeconds;
 
     while ((cd->echoSeconds == 0) || ((currentTimeMs() - startTime) < maxEchoMS)) {
         slReturn rscResp = readSerialChar(cd->fdPort, 1000);
