@@ -669,11 +669,14 @@ static slReturn parseMsgHelper(errorInfo_slReturn error, const optionDef_slOptio
     va_start(args, pattern);
     int status = vasprintf(&resolved, pattern, args);
     va_end(args);
-    // return our bad news...
-    slReturn result = makeErrorFmtMsgReturn(error, "option parsing problem: [%s] %s", getName_slOptions(def), resolved);
-    if (status != -1) {
-        free(resolved);
-    }
+    if (status < 0) resolved = NULL;
+
+    // return our bad news; the option name is allocated, so it must be freed too...
+    char* name = getName_slOptions(def);
+    slReturn result = makeErrorFmtMsgReturn(error, "option parsing problem: [%s] %s", name,
+                                            resolved ? resolved : "(out of memory)");
+    free(name);
+    free(resolved);
     return result;
 }
 
