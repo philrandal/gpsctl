@@ -143,10 +143,21 @@ extern bool portHungUp( int fdPort ) {
 
     if( fdPort < 0 ) return true;
 
-    // poll() reports a hangup, a fatal port error, or a bad file descriptor straight away, and requests nothing...
+    // poll() reports a hangup, a fatal port error, or a bad file descriptor straight away, and requests nothing.  A
+    // signal can interrupt it, so retry rather than concluding from an interrupted call that the port is healthy...
     struct pollfd pfd = { .fd = fdPort, .events = 0, .revents = 0 };
-    if( poll( &pfd, 1, 0 ) < 0 ) return false;  // we can't tell, so give the port the benefit of the doubt...
-    return (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0;
+    int pr;
+    do {
+        pr = poll( &pfd, 1, 0 );
+    } while( (pr < 0) && (errno == EINTR) );
+
+    if( (pr >= 0) && ((pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) != 0) ) return true;
+
+    // A hung-up port refuses every ioctl with EIO, so ask it directly as well.  This is what distinguishes a healthy
+    // port from one that poll() couldn't tell us about: a failed poll() must never be read as "the port is fine",
+    // because that would silently turn off the caller's recovery...
+    struct termios options;
+    return tcgetattr( fdPort, &options ) != 0;
 }
 
 

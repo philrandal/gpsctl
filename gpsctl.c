@@ -1345,9 +1345,11 @@ static slReturn actionTeardown(const optionDef_slOptions* defs, const psloConfig
 #define SERIAL_LOOK_MS      200
 
 
-// Waits for the serial device to become openable again, then opens it and puts it back into the mode that
+// Waits for the serial device to become usable again, then opens it and puts it back into the mode that
 // openSerialPort() establishes.  The old file descriptor is hung up for good, so it is closed first: no amount of
-// flushing or reconfiguring can bring it back.
+// flushing or reconfiguring can bring it back.  An open that succeeds is not enough on its own, either: while a device
+// is going away its node can linger long enough to be opened, and the port it hands back is just as dead, so the new
+// descriptor has to pass the same test before the device can be said to have come back.
 static slReturn reopenSerialPort(const psloConfig* config) {
 
     clientData_slOptions* cd = config->clientData;
@@ -1361,11 +1363,18 @@ static slReturn reopenSerialPort(const psloConfig* config) {
         slReturn openResp = openSerialPort(config);
         if (isOkReturn(openResp)) {
             freeReturn(openResp);
-            return makeOkReturn();
+            if (!portHungUp(cd->fdPort)) return makeOkReturn();
+            if (V2) printf("Serial port (\"%s\") opened but is still hung up...\n", cd->port);
+            if (cd->fdPort >= 0) close(cd->fdPort);
+            cd->fdPort = -1;
         }
 
-        if (currentTimeMs() >= deadline)
-            return makeErrorMsgReturn(ERR_CAUSE(openResp), "serial device did not come back");
+        if (currentTimeMs() >= deadline) {
+            if (isErrorReturn(openResp))
+                return makeErrorMsgReturn(ERR_CAUSE(openResp), "serial device did not come back");
+            freeReturn(openResp);
+            return makeErrorMsgReturn(ERR_ROOT, "serial device is still hung up");
+        }
 
         freeReturn(openResp);
         sleep_ns(SERIAL_LOOK_MS * 1000 * 1000);
@@ -1382,7 +1391,10 @@ static slReturn actionRecover(const optionDef_slOptions* defs, const psloConfig*
     clientData_slOptions* cd = config->clientData;
 
     // only a port that is no longer usable can be helped by reopening it...
-    if (!portHungUp(cd->fdPort)) return makeWarningReturn();
+    if (!portHungUp(cd->fdPort)) {
+        if (V2) printf("Serial port (\"%s\") is still usable, so not reopening it...\n", cd->port);
+        return makeWarningReturn();
+    }
 
     if (V1) printf("Serial port (\"%s\") is not usable, reopening it...\n", cd->port);
 
