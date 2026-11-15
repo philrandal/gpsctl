@@ -178,7 +178,7 @@ static slReturn addOptionRecord( state_slOptions *state, const optionDef_slOptio
             hits++;
     if( hits >= def->maxCount )
         return errorMessageHelper(ERR_ROOT, state->debug, "parsing", "too many occurrences of option \"%s\": max is %d",
-                                   getName_slOptions( def ), def->maxCount );
+                                   tempName_slOptions( def ), def->maxCount );
 
     // ok, all is well - record it...
     (state->optionRecords[state->numOptionRecords]).def = def;
@@ -567,7 +567,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
         // if we're expecting an argument for a previously processed option, handle it...
         if((state->numOptionRecords > 0) && (LAST_OPT_REC.def->arg == argRequired) && (LAST_OPT_REC.arg == NULL)) {
             if( DEBUG)
-                printf( "Assigning argument \"%s\" to option \"%s\"\n", CUR_ARG, getName_slOptions(LAST_OPT_REC.def ));
+                printf( "Assigning argument \"%s\" to option \"%s\"\n", CUR_ARG, tempName_slOptions(LAST_OPT_REC.def ));
             LAST_OPT_REC.arg = CUR_ARG;
             CUR_ARG_INDEX++;
             REM_ARGS--;
@@ -737,7 +737,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
     // make sure the last option has an argument, if it requires one...
     if( (state->numOptionRecords > 0) && (LAST_OPT_REC.def->arg == argRequired) && (LAST_OPT_REC.arg == NULL) )
         return errorMessageHelper(ERR_ROOT, DEBUG, "parsing", "option [%s] missing required argument",
-                                  getName_slOptions(LAST_OPT_REC.def ));
+                                  tempName_slOptions(LAST_OPT_REC.def ));
 
     // return with an error-free response...
     // Note that ourArgv is a local array in process_slOptions() that disappears when that function returns, so we
