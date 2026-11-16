@@ -50,7 +50,7 @@ extern void *safeMalloc( size_t size ) {
 extern bool issprint( const char* str ) {
     if( strempty( str ) ) return false;
     do {
-        if( !isprint( *str ) ) return false;
+        if( !isprint( (unsigned char) *str ) ) return false;  // (ctype wants an unsigned char value)
     } while( *(++str) != 0 );
     return true;
 }
@@ -61,7 +61,7 @@ extern bool issprint( const char* str ) {
 extern bool issgraph( const char* str ) {
     if( strempty( str ) ) return false;
     do {
-        if( !isgraph( *str ) ) return false;
+        if( !isgraph( (unsigned char) *str ) ) return false;
     } while( *(++str) != 0 );
     return true;
 }
@@ -147,7 +147,7 @@ extern void sleep_ns( int ns ) {
 
 // Returns [0..15] if the given character is a valid hex digit, -1 otherwise.
 extern int hex2int( char c ) {
-    if( !isxdigit( c ) ) return -1;
+    if( !isxdigit( (unsigned char) c ) ) return -1;
     return ((c >= '0') && (c <= '9')) ? (c - '0') : (0x0F & (c + 9));
 }
 

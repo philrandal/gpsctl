@@ -212,7 +212,7 @@ static slReturn validateConfig( const psloConfig *config ) {
         if((curDef->longOpt == NULL) && (curDef->shortOpt == 0))
             return errorMessageHelper(ERR_ROOT, debug, "validation",
                                        "option definition %d has neither a short form or a long form specified", n );
-        if((curDef->shortOpt != 0) && !isprint( curDef->shortOpt ))
+        if((curDef->shortOpt != 0) && !isprint( (unsigned char) curDef->shortOpt ))
             return errorMessageHelper(ERR_ROOT, debug, "validation",
                                        "option definition '%s' has an invalid short name with character code: %d",
                                        tempName_slOptions( curDef ), curDef->shortOpt );

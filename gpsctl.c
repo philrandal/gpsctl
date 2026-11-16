@@ -757,7 +757,7 @@ static slReturn parseBool(void* ptrArg, int intArg, const optionDef_slOptions* d
         *((int*)ptrArg) = (strchr("yYtT1", *arg) != NULL ? 1 : 0);
         // now look for "on" and treat it as true
         if (strlen(arg) > 1) {
-            if ((tolower(arg[0]) == 'o') && (tolower(arg[1]) == 'n')) {
+            if ((tolower((unsigned char) arg[0]) == 'o') && (tolower((unsigned char) arg[1]) == 'n')) {
                 *((int*)ptrArg) = 1;
             }
         }
