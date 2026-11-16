@@ -1249,6 +1249,11 @@ static slReturn  actionEcho(const optionDef_slOptions* defs, const psloConfig* c
         int c = getReturnInfoChar(rscResp);
         freeReturn(rscResp);
         if (c >= 0) printf("%c", c);
+
+        // stdout is only line-buffered on a terminal; redirected to a pipe or a file it is block-buffered, and an echo
+        // that runs for a long time (or forever) would show nothing until the buffer filled up or the program exited,
+        // so push each line out as soon as it is complete...
+        if (c == '\n') fflush(stdout);
     }
 
     if (V2) printf("\nEnding echo...\n"); else printf("\n");
