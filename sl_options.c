@@ -223,7 +223,7 @@ static slReturn validateConfig( const psloConfig *config ) {
         if((curDef->longOpt != NULL) && !issgraph( curDef->longOpt ))
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has an invalid long name: '%s'",
                                        tempName_slOptions( curDef ), curDef->longOpt );
-        if((curDef->maxCount < 0) || (curDef->maxCount > MAX_SL_OPTIONS))
+        if( curDef->maxCount > MAX_SL_OPTIONS )  // (maxCount is unsigned, so it can't be negative; zero ends the list)
             return errorMessageHelper(ERR_ROOT, debug, "validation", "option definition '%s' has a maxCount out of range %d",
                                        tempName_slOptions( curDef ), curDef->maxCount );
         if( strempty( curDef->helpMsg ))
