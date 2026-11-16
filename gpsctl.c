@@ -695,15 +695,35 @@ static slReturn parsePort(void* ptrArg, int intArg, const optionDef_slOptions *d
 }
 
 
+// Converts the whole of the given argument to an int.  Returns 0 and stores the result if that worked, 1 if the argument
+// is not an integer (an empty argument isn't one: strtol() would happily call it zero), or 2 if it is too big or too
+// small for an int (a plain cast from long would silently wrap it into some other, perfectly valid-looking, value).
+static int argToInt(const char* arg, int* result) {
+
+    if (*arg == 0) return 1;
+
+    char *endPtr;
+    errno = 0;
+    long n = strtol(arg, &endPtr, 10);
+    if (*endPtr != 0) return 1;
+    if ((errno == ERANGE) || (n < INT_MIN) || (n > INT_MAX)) return 2;
+
+    *result = (int) n;
+    return 0;
+}
+
+
 // Parse the given argument, which is presumed to be a string representing a positive integer that is one of the
 // standard baud rates.  If the parsing fails for any reason, return an error
 static slReturn parseBaud(void* ptrArg, int intArg, const optionDef_slOptions* def, const char* arg, clientData_slOptions* clientData) {
 
     // make sure we can parse the entire argument into an integer...
-    char *endPtr;
-    int baud = (int) strtol(arg, &endPtr, 10);
-    if (*endPtr != 0)
+    int baud = 0;
+    int status = argToInt(arg, &baud);
+    if (status == 1)
         return parseMsgHelper(ERR_ROOT, def, "the specified baud rate (\"%s\") is not an integer", arg);
+    if (status == 2)
+        return parseMsgHelper(ERR_ROOT, def, "the specified baud rate (\"%s\") is out of range", arg);
 
     // make sure the result is a valid baud rate...
     if (getBaudRateCookie(baud) < 0)
@@ -754,10 +774,11 @@ static slReturn parseInt(void* ptrArg, int intArg, const optionDef_slOptions* de
     // make sure we can parse the entire argument into an integer...
     int n = 0;
     if (arg != NULL) {
-        char *endPtr;
-        n = (int) strtol(arg, &endPtr, 10);
-        if (*endPtr != 0)
+        int status = argToInt(arg, &n);
+        if (status == 1)
             return parseMsgHelper(ERR_ROOT, def, "the specified %s (\"%s\") is not an integer", def->argName, arg);
+        if (status == 2)
+            return parseMsgHelper(ERR_ROOT, def, "the specified %s (\"%s\") is out of range", def->argName, arg);
     }
 
     // stuff it away to the given pointer...
