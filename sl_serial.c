@@ -293,10 +293,15 @@ extern slReturn setTermOptionsBaud( int fdPort, int baud ) {
     if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from cfsetispeed(): %s", strerror(errno) );
     result = cfsetospeed( &options, (speed_t) baudCookie );
     if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from cfsetospeed(): %s", strerror(errno) );
-    result = tcflush( fdPort, TCIFLUSH );
-    if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcflush(): %s", strerror(errno) );
+
+    // change the rate first, then flush.  Anything that arrived at the old rate is still in the buffer and has to go -
+    // the receiver's ACK for the command that changed the rate, for one - and so has anything that slipped in between
+    // the two calls, which would otherwise be read at the new rate and turn into garbage.  Flushing first leaves that
+    // window open...
     result = tcsetattr( fdPort, TCSANOW, &options );
     if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcsetattr(): %s", strerror(errno) );
+    result = tcflush( fdPort, TCIFLUSH );
+    if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcflush(): %s", strerror(errno) );
     return makeOkReturn();
 }
 
@@ -348,10 +353,12 @@ extern slReturn setTermOptions( int fdPort, int baud, int dataBits, int stopBits
     options.c_cc[VMIN]  = 1;
     options.c_cc[VTIME] = 0;
 
-    result = tcflush( fdPort, TCIFLUSH );
-    if( result < 0 ) return makeErrorFmtMsgReturn(ERR_ROOT, "error from tcflush: %s", strerror(errno));
+    // change the rate first, then flush, so that anything that arrived at the old rate is discarded as well (see
+    // setTermOptionsBaud())...
     result = tcsetattr( fdPort, TCSANOW, &options );
     if( result < 0 ) return makeErrorFmtMsgReturn(ERR_ROOT, "error from tcsetattr: %s", strerror(errno));
+    result = tcflush( fdPort, TCIFLUSH );
+    if( result < 0 ) return makeErrorFmtMsgReturn(ERR_ROOT, "error from tcflush: %s", strerror(errno));
     return makeOkReturn();
 }
 
