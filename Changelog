@@ -1,3 +1,22 @@
+2026-11-16 - Phil Randal and Claude - Release 1.35
+    sl_options: compare unsigned with unsigned in addOptionRecord
+    Pass unsigned char values to the ctype functions
+    sl_options: drop the impossible maxCount < 0 check
+    sl_options: fix memory leaks in the help output and warning results
+    sl_general: make sleep_ns sleep for a second or more, and through signals
+    sl_serial: set VMIN and VTIME in setTermOptions
+    gpsctl: stop the --query option definition shadowing the queryDef type
+    gpsctl: make cmpSatellite static and const-correct
+    gpsctl: reject empty and out-of-range integer arguments
+    gpsctl: treat an empty yes/no argument as no, and document 'on'
+    gpsctl: flush echoed NMEA output a line at a time
+    ublox: only change the UART1 rate in ubxEnableNMEAMsg
+    ublox: don't truncate the CFG-GNSS block limit to 8 bits
+    ublox: only apply the NAV-PVT time correction to a valid time
+    ublox: resync after a bad UBX frame instead of failing on it
+    ublox: validate CFG-NMEA reply size in ubxConfigNMEAVersion
+    ublox: round scaled NAV5 config values instead of truncating
+
 2026-11-15 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.34
     Fix auto-baudrate detection logic
 
@@ -11,7 +30,7 @@
     Widen the PRr column in the satellite table, which a negative residual pushed out of line.
     Run gpsctl up to three times at boot, 15 seconds apart, and log the errors.
 
-2026-11-15 - Phil Randal and Claude Code - Release 1.31
+2026-11-15 - Phil Randal and Claude - Release 1.31
     Add retry if serial port fails
     Another memory leak patched
 
@@ -21,7 +40,7 @@
 2026-11-13 - Phil Randal and OpenCode / DeepSeek V4.1 Flash Free - Release 1.29
     Better fix for sync errors
 
-2026-11-13 - Phil Randal and Claude Code - Release 1.28
+2026-11-13 - Phil Randal and Claude - Release 1.28
     Make --help, --version and -U work without a serial port. 
        They now exit 0 on a machine with no /dev/serial0. Before, they exited 1.
     Fix frame sync when a stray B5 comes right before a real frame (B5 B5 62 …).
@@ -37,16 +56,16 @@
     Fix minor error message bugs.
     Retry a timed-out UBX sync twice, so three attempts in all.
 
-2026-11-13 - Phil Randal and Claude Code and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
+2026-11-13 - Phil Randal and Claude and OpenCode / DeepSeek V4.1 Flash Free - Release 1.27
     Various bug fixes
     Fix NMEA initialisation
     Optimise serial reads using poll() (thanks, Claude)
    
-2026-11-12 - Phil Randal and Claude Code - Release 1.24
+2026-11-12 - Phil Randal and Claude - Release 1.24
     Various double free, buffer overflow, null pointer dereference fixes, etc via Claude AI
     Fix ubxReset parameters (Claude AI)
 
-2026-11-11 - Phil Randal and Claude Code - Release 1.23
+2026-11-11 - Phil Randal and Claude - Release 1.23
     Fix null pointer dereferences and potential heap overflow (thanks, Claude)
     Refactor clientData references to use consistent pointer name 'cd' instead of 'clientData'
 
