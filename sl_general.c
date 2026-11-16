@@ -8,6 +8,7 @@
 #define _DARWIN_C_SOURCE
 #define _POSIX_C_SOURCE 199309L
 
+#include <errno.h>
 #include "sl_general.h"
 
 
@@ -131,12 +132,17 @@ extern long long currentTimeMs() {
 }
 
 
-// Sleep for the given number of nanoseconds.
+// Sleep for the given number of nanoseconds.  A request of a second or more is fine (nanosleep() itself refuses a
+// nanoseconds field of a billion or more, so it has to be split into seconds and nanoseconds), and a signal that cuts
+// the sleep short doesn't end it: the time that is left is slept off.  Zero or less returns at once.
 extern void sleep_ns( int ns ) {
-    struct timespec nanos;
-    nanos.tv_sec = 0;
-    nanos.tv_nsec = ns;
-    nanosleep( &nanos, NULL );
+    if( ns <= 0 ) return;
+
+    struct timespec request, remaining;
+    request.tv_sec = ns / 1000000000;
+    request.tv_nsec = ns % 1000000000;
+    while( (nanosleep( &request, &remaining ) != 0) && (errno == EINTR) )
+        request = remaining;
 }
 
 // Returns [0..15] if the given character is a valid hex digit, -1 otherwise.
