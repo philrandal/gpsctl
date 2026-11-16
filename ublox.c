@@ -654,7 +654,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected CFG-GNSS message body size: %zu bytes", bodySize);
     }
     uint8_t gnssRecs = get_uint8_slBuffer(b, 3);  // number of configuration blocks...
-    uint8_t maxRecs = (uint8_t) ((bodySize - 4) / 8);
+    size_t maxRecs = (bodySize - 4) / 8;  // (not uint8_t: a long body would wrap this, e.g. 256 blocks to 0)
     if (gnssRecs > maxRecs) gnssRecs = maxRecs;
     for (int i = 0; i < gnssRecs; i++) {
 
