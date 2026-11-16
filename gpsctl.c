@@ -733,7 +733,7 @@ static slReturn parseBool(void* ptrArg, int intArg, const optionDef_slOptions* d
 
     // see if we've got anything that like a yes or true (otherwise, we make it a false)...
     *((int*)ptrArg) = 0;
-    if (arg) {
+    if (arg && *arg) {  // (an empty argument is no answer at all: strchr() finds the terminator in any string)
         *((int*)ptrArg) = (strchr("yYtT1", *arg) != NULL ? 1 : 0);
         // now look for "on" and treat it as true
         if (strlen(arg) > 1) {
@@ -1637,7 +1637,7 @@ static char* exampleText =
     "    satellites  returns currently visible satellite information from the GPS\n"
     "\n"
     "  Yes or no values:\n"
-    "    yes         indicated by an initial character of 'y', 'Y', 't', 'T', or '1'\n"
+    "    yes         indicated by an initial character of 'y', 'Y', 't', 'T', or '1', or by 'on'\n"
     "    no          indicated by anything else\n"
     "\n"
     "Examples:\n"
