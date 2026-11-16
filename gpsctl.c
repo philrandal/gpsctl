@@ -1531,7 +1531,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             "change the U-Blox and host baud rates to the specified standard rate"
     };
 
-    optionDef_slOptions queryDef = {
+    optionDef_slOptions queryOptionDef = {
             1, "query", 'Q', argRequired,                                       // max, long, short, arg
             parseQuery, NULL, 0,                                                // parser, ptrArg, intArg
             NULL,                                                               // constrainer
@@ -1629,7 +1629,7 @@ static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData
             syncDef,
             newbaudDef,
             nmeaDef,
-            queryDef,
+            queryOptionDef,
             configureForGalileoDef,
             configureSatellitesDef,
             configureForTimingDef,
