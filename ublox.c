@@ -548,30 +548,42 @@ extern slReturn isNMEAmsgEnabled(int fdPort, int verbosity, nmeaMSG messageID) {
     return makeOkInfoReturn(bool2info(state));
 }
 
-// Enable / disable NMEA Message types
+// Enable / disable NMEA Message types on the UART.  The message's current output rates are polled first, and only the
+// UART1 rate is changed: a CFG-MSG sets the rate for every port, so sending zeros for the others (as this once did)
+// would silently switch the message off on I2C, USB, and SPI.
 extern slReturn ubxEnableNMEAMsg(int fdPort, int verbosity, nmeaMSG messageID, bool enable) {
-    // construct the configuration message...
-    slBuffer* body = create_slBuffer(8, LittleEndian);
 
-    put_uint8_slBuffer(body,  0, 0xf0);             //  Message type NMEA
-    put_uint8_slBuffer(body,  1, messageID);
-    put_uint8_slBuffer(body,  2, 0x00);             //  other ports
-    put_uint8_slBuffer(body,  3, (enable) ? 1 : 0); //  Serial port
-    put_uint8_slBuffer(body,  4, 0x00);             //  other ports
-    put_uint8_slBuffer(body,  5, 0x00);             //  other ports
-    put_uint8_slBuffer(body,  6, 0x00);             //  other ports
-    put_uint8_slBuffer(body,  7, 0x00);             //  other ports
+    // poll for the message's current rates...
+    ubxMsg poll = createUbxMsg(ut_CFG_MSG, init_slBuffer(LittleEndian, 0xf0, messageID));
+    ubxMsg current;
+    slReturn pollResp = pollUbx(fdPort, poll, CFG_NMEA_MAX_MS, &current);
+    if (isErrorReturn(pollResp))
+        return makeErrorMsgReturn(ERR_CAUSE(pollResp), "failed to get current NMEA MSG configuration");
+    freeReturn(pollResp);
+
+    // the body comes from the device and goes straight back to it, so it must be complete: msgClass, msgID, then one
+    // rate for each of six ports (I2C, UART1, UART2, USB, SPI, reserved)...
+    slReturn sizeResp = validateBodySize(&current, 8, "CFG-MSG");
+    if (isErrorReturn(sizeResp)) return sizeResp;
+    freeReturn(sizeResp);
+
+    // if the serial port is already the way we want it, there's nothing to do...
+    slBuffer* body = current.body;
+    if ((get_uint8_slBuffer(body, 3) != 0) == enable) {
+        free(body);
+        return makeOkReturn();
+    }
+
+    // change only the rate for the serial port (UART1), leaving every other port as the receiver has it...
+    put_uint8_slBuffer(body, 3, (enable) ? 1 : 0);
     ubxMsg nmeaMsg = createUbxMsg(ut_CFG_MSG, body);
 
     // now send it, and wait for our ack...
     slReturn nmeaResp = sendUbxAckedMsg(fdPort, nmeaMsg);
-    if (isErrorReturn(nmeaResp)) {
-        free(body);
-        return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "failed to enable /disable NMEA MSG");
-    }
-    freeReturn(nmeaResp);
-
     free(body);
+    if (isErrorReturn(nmeaResp))
+        return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "failed to enable /disable NMEA MSG");
+    freeReturn(nmeaResp);
 
     return makeOkReturn();
 }

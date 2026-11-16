@@ -233,6 +233,8 @@ slReturn ubxConfigForTiming( int fdPort, int verbosity );
 slReturn ubxGetConfig( int fdPort, int verbosity, ubxConfig* config );
 slReturn ubxChangeBaudRate( int fdPort, unsigned int newBaudRate, int verbosity );
 slReturn ubxSetNMEAData( int fdPort, int verbosity, bool nmeaOn );
+slReturn isNMEAmsgEnabled( int fdPort, int verbosity, nmeaMSG messageID );
+slReturn ubxEnableNMEAMsg( int fdPort, int verbosity, nmeaMSG messageID, bool enable );
 slReturn ubxSynchronizer( int fdPort, int maxTimeMs, int verbosity );
 
 extern dictionary *gpsctlConf;
