@@ -532,6 +532,12 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
         return makeErrorMsgReturn(ERR_CAUSE(nmeaResp), "problem getting NMEA Version information from GPS");
     freeReturn(nmeaResp);
 
+    // the body comes from the device and goes straight back to it, so it must be complete: the NMEA version is byte 1,
+    // and a short body would otherwise be sent back unchanged (the put below is silently skipped)...
+    slReturn nmeaSize = validateBodySize(&nmeaMsg, 4, "CFG-NMEA");
+    if (isErrorReturn(nmeaSize)) return nmeaSize;
+    freeReturn(nmeaSize);
+
     // make the changes we need to make only if we need to...
     slBuffer* b = nmeaMsg.body;
     if (get_uint8_slBuffer(b,  1) != nmeaVersion) {
