@@ -347,10 +347,10 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
 
 
 // comparison function for satellite search...
-int cmpSatellite(const void* a, const void* b) {
+static int cmpSatellite(const void* a, const void* b) {
 
-    ubxSatellite* c = (ubxSatellite*) a;
-    ubxSatellite* d = (ubxSatellite*) b;
+    const ubxSatellite* c = (const ubxSatellite*) a;
+    const ubxSatellite* d = (const ubxSatellite*) b;
 
     if (c->used && !d->used) return -1;
     if (d->used && !c->used) return 1;
