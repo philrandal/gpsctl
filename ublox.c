@@ -106,13 +106,35 @@ ubxMsg createUbxMsg(ubxType type, slBuffer *body) {
 }
 
 
+// Bytes from a frame that failed its checksum.  A bad frame doesn't mean its bytes are junk: a corrupt or bogus length
+// (typical when the receive buffer starts mid-message) can swallow the start of the real message that follows, so those
+// bytes are fed back through the synchronizer, minus the sync pair that led to the bad frame, before reading any more
+// from the port.
+typedef struct ubxReplay {
+    byte   *data;
+    size_t  len;
+    size_t  pos;
+} ubxReplay;
+
+
+// Reads one byte for the UBX parser: from the replay buffer if it has any left, otherwise from the serial port.
+// Returns what readSerialChar() does: Ok with the byte as info, a warning on timeout, or an error.
+static slReturn readUbxByte(int fdPort, ubxReplay *replay, long long msTimeout) {
+
+    if (replay->pos < replay->len)
+        return makeOkInfoReturn(char2info(replay->data[replay->pos++]));
+    return readSerialChar(fdPort, msTimeout);
+}
+
+
 // Returns if all the requested bytes were successfully read.
-static slReturn readUbxBytes(int fdPort, byte *buffer, int *count, size_t max, int max_ms, long long startTime, long long charWaitMs) {
+static slReturn readUbxBytes(int fdPort, ubxReplay *replay, byte *buffer, int *count, size_t max, int max_ms, long long startTime, long long charWaitMs) {
 
     *count = 0;
 
-    while (((currentTimeMs() - startTime) < max_ms) && (*count < max)) {
-        slReturn rscResp = readSerialChar(fdPort, charWaitMs);
+    // (bytes being replayed after a bad frame don't wait on the port, so they're not bound by the time limit)...
+    while ((((currentTimeMs() - startTime) < max_ms) || (replay->pos < replay->len)) && ((size_t) *count < max)) {
+        slReturn rscResp = readUbxByte(fdPort, replay, charWaitMs);
 
         if (isErrorReturn(rscResp))
             return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
@@ -129,27 +151,49 @@ static slReturn readUbxBytes(int fdPort, byte *buffer, int *count, size_t max, i
             (*count)++;
         }
     }
-    return (*count >= max) ? makeOkReturn() : makeErrorMsgReturn(ERR_ROOT, "insufficient bytes read");
+    return ((size_t) *count >= max) ? makeOkReturn() : makeErrorMsgReturn(ERR_ROOT, "insufficient bytes read");
 }
 
 
-// Waits up to one second for a UBX message to be received.
-// The body (an slBuffer) is only allocated if returns Ok.
+// Called when the frame just read (type, length, body and checksum) turned out to be bad: queues everything after its
+// first byte-pair of sync for another look, ahead of anything still unread on the port.  Anything not yet consumed from
+// an earlier replay is kept, after the new bytes.
+static void queueReplay(ubxReplay *replay, const byte *hdr, slBuffer *body, const byte *chk) {
+
+    size_t bodyLen = size_slBuffer(body);
+    size_t leftover = replay->len - replay->pos;
+    size_t total = 4 + bodyLen + 2 + leftover;
+    byte *data = safeMalloc(total);
+
+    memcpy(data, hdr, 4);
+    memcpy(data + 4, buffer_slBuffer(body), bodyLen);
+    memcpy(data + 4 + bodyLen, chk, 2);
+    if (leftover > 0) memcpy(data + 4 + bodyLen + 2, replay->data + replay->pos, leftover);
+
+    free(replay->data);
+    replay->data = data;
+    replay->len  = total;
+    replay->pos  = 0;
+}
+
+
+// Waits up to max_ms for a UBX message to be received.  The body (an slBuffer) is only allocated if returns Ok.
 #define UBX_SYNC1 (0xB5)
 #define UBX_SYNC2 (0x62)
-static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
+static slReturn rcvUbxMsgReplay(int fdPort, ubxMsg* msg, int max_ms, ubxReplay *replay) {
 
     ubxMsg nomsg = { {0, 0}, NULL, {0, 0}};
     *msg = nomsg;
 
     long long startTime = currentTimeMs();
 
-    while (((currentTimeMs() - startTime) < max_ms)) {
+    // keep going while there's time, or while bytes from a bad frame are still waiting to be re-examined...
+    while (((currentTimeMs() - startTime) < max_ms) || (replay->pos < replay->len)) {
 
         // first we synchronize on the 0xB5, 0x62 byte pair that starts every UBX message...
         int count = 0;
-        while (((currentTimeMs() - startTime) < max_ms) && (count < 2)) {
-            slReturn rscResp = readSerialChar(fdPort, startTime + max_ms - currentTimeMs());
+        while ((((currentTimeMs() - startTime) < max_ms) || (replay->pos < replay->len)) && (count < 2)) {
+            slReturn rscResp = readUbxByte(fdPort, replay, startTime + max_ms - currentTimeMs());
 
             if (isErrorReturn(rscResp))
                 return makeErrorMsgReturn(ERR_CAUSE(rscResp), "couldn't read serial character");
@@ -176,25 +220,21 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
         }
         if (count < 2) continue;
 
-        // we're synchronized, so it's time to get the message type...
-        byte buff[2];
-        slReturn rubResp = readUbxBytes(fdPort, buff, &count, 2, max_ms, startTime, startTime + max_ms - currentTimeMs());
+        // we're synchronized, so it's time to get the message type and the body length (kept, with the checksum
+        // below, so that a bad frame can be replayed)...
+        byte hdr[4];
+        slReturn rubResp = readUbxBytes(fdPort, replay, hdr, &count, 4, max_ms, startTime, startTime + max_ms - currentTimeMs());
         if (isErrorReturn(rubResp))
-            return makeErrorMsgReturn(ERR_CAUSE(rubResp), "couldn't read serial characters while receiving UBX message type");
-        if (count < 2) continue;
-        ubxType type = {buff[0], buff[1]};
+            return makeErrorMsgReturn(ERR_CAUSE(rubResp), "couldn't read serial characters while receiving UBX message header");
+        freeReturn(rubResp);
+        if (count < 4) continue;
+        ubxType type = {hdr[0], hdr[1]};
         msg->type = type;
-
-        // get the body length, little-endian...
-        rubResp = readUbxBytes(fdPort, buff, &count, 2, max_ms, startTime, startTime + max_ms - currentTimeMs());
-        if (isErrorReturn(rubResp))
-            return makeErrorMsgReturn(ERR_CAUSE(rubResp), "couldn't read serial characters while receiving UBX message body length");
-        if (count < 2) continue;
-        size_t length = buff[0] | (buff[1] << 8);
+        size_t length = hdr[2] | (hdr[3] << 8);  // little-endian...
 
         // now get the body...
         msg->body = create_slBuffer(length, LittleEndian);
-        rubResp = readUbxBytes(fdPort, buffer_slBuffer(msg->body), &count, length, max_ms, startTime, startTime + max_ms - currentTimeMs());
+        rubResp = readUbxBytes(fdPort, replay, buffer_slBuffer(msg->body), &count, length, max_ms, startTime, startTime + max_ms - currentTimeMs());
         if (isErrorReturn(rubResp)) {
             free(msg->body);
             msg->body = NULL;
@@ -202,24 +242,28 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
                                           "couldn't read serial characters while receiving UBX message body (0x%02x/0x%02x, %zu bytes)",
                                           type.class, type.id, length);
         }
+        freeReturn(rubResp);
         msg->checksum = calcFletcherChecksum(*msg);  // this calculates what the checksum SHOULD be...
-        if (count >= length) {
+        if ((size_t) count >= length) {
 
             // finally, get the checksum...
-            rubResp = readUbxBytes(fdPort, buff, &count, 2, max_ms, startTime, startTime + max_ms - currentTimeMs());
+            byte buff[2];
+            rubResp = readUbxBytes(fdPort, replay, buff, &count, 2, max_ms, startTime, startTime + max_ms - currentTimeMs());
             if (isErrorReturn(rubResp)) {
                 free(msg->body);
                 msg->body = NULL;
                 return makeErrorMsgReturn(ERR_CAUSE(rubResp), "couldn't read serial characters while receiving UBX message checksum");
             }
+            freeReturn(rubResp);
             if (count >= 2) {
                 if ((buff[0] == msg->checksum.ck_a) && (buff[1] == msg->checksum.ck_b))
                     return makeOkReturn();
-                else {
-                    free(msg->body);
-                    msg->body = NULL;
-                    return makeErrorMsgReturn(ERR_ROOT, "UBX received message with checksum error");
-                }
+
+                // A bad checksum usually means we synchronized on a B5 62 that wasn't really a frame start (the
+                // receive buffer began mid-message, or a payload happened to contain the pair), so what we took for
+                // this frame may have swallowed the start of a genuine one.  Look through its bytes again, and keep
+                // hunting rather than giving up on the first bad frame...
+                queueReplay(replay, hdr, msg->body, buff);
             }
         }
         free(msg->body);
@@ -227,6 +271,18 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
     }
 
     return makeErrorMsgReturn(ERR_ROOT, "timed out while waiting to receive UBX message");
+}
+
+
+// Waits up to max_ms for a UBX message to be received.  A frame with a bad checksum is skipped and the search for a
+// good one goes on, so the error only shows up (as a timeout) if no good message arrives in time.  The body (an
+// slBuffer) is only allocated if returns Ok.
+static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
+
+    ubxReplay replay = { NULL, 0, 0 };
+    slReturn result = rcvUbxMsgReplay(fdPort, msg, max_ms, &replay);
+    free(replay.data);
+    return result;
 }
 
 
