@@ -493,7 +493,8 @@ static void correctTime(ubxFix *fix) {
     if (fix->hour >= 0) return;
     fix->hour += 24;
 
-    // we rounded to the next day - sheesh, fix it...
+    // we rounded to the next day - sheesh, fix it (but without a valid date there is no day to step back from)...
+    if (!fix->date_valid) return;
     fix->day--;
     if (fix->day >= 1) return;
 
@@ -988,7 +989,10 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     fix->heading_deg                       = get_int32_slBuffer(body, 64) * 1e-5;
     fix->heading_accuracy_deg              = get_uint32_slBuffer(body, 72) * 1e-5;
     free(fixMsg.body);
-    correctTime(fix);
+
+    // the correction only means something once the receiver has a valid time: before that the time fields are zero,
+    // and a negative correction would turn them into nonsense (a second of -0.3 becomes 59.7 of minute -1, and so on)...
+    if (fix->time_valid) correctTime(fix);
 
     return makeOkReturn();
 }
