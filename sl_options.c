@@ -356,6 +356,8 @@ static slReturn helpAction( const optionDef_slOptions *defs, const psloConfig *c
 
         // finally, we actually do it...
         printf( format, namearg, curDef->helpMsg, repeat );
+        free( format );
+        free( name );
         free( namearg );
         if( strlen( repeat ) > 0 ) free( repeat );
     }
@@ -773,8 +775,9 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
         free( args->argv );                                                                     \
         free( args );                                                                           \
         return errorMessageHelper( ERR_CAUSE( result ), DEBUG, class, "fatal error" );          \
-    } else if( isWarningReturn( result )) {                                                     \
-        warningMessageHelper( result, class );                                                  \
+    } else {                                                                                    \
+        if( isWarningReturn( result )) warningMessageHelper( result, class );                   \
+        freeReturn( result );                                                                   \
     }
 
 extern slReturn process_slOptions( int argc, const char *argv[], const psloConfig *config ) {
