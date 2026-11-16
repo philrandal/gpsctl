@@ -340,6 +340,14 @@ extern slReturn setTermOptions( int fdPort, int baud, int dataBits, int stopBits
     options.c_iflag = IGNPAR;
     options.c_oflag = 0;
     options.c_lflag = 0;
+
+    // In raw (non-canonical) mode VMIN and VTIME decide when a read - and, more to the point, poll() - sees data.  They
+    // survive on the port from whoever used it last, and with a VMIN above one poll() reports nothing until that many
+    // bytes have arrived, so a short reply from the GPS would just look like a timeout.  Say what we need: any single
+    // byte is enough, and there's no inter-byte timer...
+    options.c_cc[VMIN]  = 1;
+    options.c_cc[VTIME] = 0;
+
     result = tcflush( fdPort, TCIFLUSH );
     if( result < 0 ) return makeErrorFmtMsgReturn(ERR_ROOT, "error from tcflush: %s", strerror(errno));
     result = tcsetattr( fdPort, TCSANOW, &options );
