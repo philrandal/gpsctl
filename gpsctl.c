@@ -112,7 +112,7 @@ static slReturn setSyncMethod(const char* arg, clientData_slOptions* clientData)
         return makeErrorFmtMsgReturn(ERR_ROOT, "\"%s\" is not a recognized synchronization method", arg);
 
     // otherwise, try to match the argument...
-    for (int i = 0; i < ARRAY_SIZE(syncTypeRecs); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(syncTypeRecs); i++) {
         if (0 == strncmp(arg, syncTypeRecs[i].name, strlen(arg))) {
             clientData->syncMethod = syncTypeRecs[i].type;
             return makeOkReturn();
@@ -322,7 +322,7 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
         cJSON_AddItemToObject(root, "software_version", cJSON_CreateString(version.software));
         cJSON_AddItemToObject(root, "hardware_version", cJSON_CreateString(version.hardware));
         cJSON_AddItemToObject(root, "extensions",
-                              cJSON_CreateStringArray((const char**) version.extensions, version.number_of_extensions));
+                              cJSON_CreateStringArray((const char *const *) version.extensions, version.number_of_extensions));
 
         char *jsonStr = cJSON_PrintUnformatted(root);
         printf("%s\n", jsonStr);
@@ -644,7 +644,7 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
         printf("  NMEA:\n");
         printf("    Enabled:                      %s\n", yesNo(config.nmeaEnabled));
-        printf("    Version:                      %01x.%01x\n",               config.nmeaVersion / 16, config.nmeaVersion % 16);
+        printf("    Version:                      %01x.%01x\n",               (unsigned) config.nmeaVersion / 16, (unsigned) config.nmeaVersion % 16);
         printf("    GGA:                          %s\n", onOff(config.GGA));
         printf("    GLL:                          %s\n", onOff(config.GLL));
         printf("    GSA:                          %s\n", onOff(config.GSA));
@@ -812,7 +812,7 @@ static queryDef queryDefs[] = {
 static slReturn parseQuery(void* ptrArg, int intArg, const optionDef_slOptions* def, const char* arg, clientData_slOptions* clientData) {
 
     // see what kind of query we've got here...
-    for (int i = 0; i < ARRAY_SIZE(queryDefs); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(queryDefs); i++) {
         if (0 == strcmp(arg, queryDefs[i].name)) {
             clientData->queryType = queryDefs[i].queryType;
             return makeOkReturn();
@@ -1442,7 +1442,7 @@ static slReturn actionRecover(const optionDef_slOptions* defs, const psloConfig*
 }
 
 
-static optionDef_slOptions* getOptionDefs(const clientData_slOptions* clientData) {
+static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
 
     optionDef_slOptions echoDef = {
             1, "echo", 'e', argOptional,                                        // max, long, short, arg
@@ -1703,7 +1703,7 @@ int main(int argc, char *argv[]) {
             actionRecover                                       // action failure recovery function...
     };
 
-    slReturn resp = process_slOptions(argc, (const char **) argv, &config);
+    slReturn resp = process_slOptions(argc, (const char *const *) argv, &config);
 
     bool failed = isErrorReturn(resp);
     // fetch the unparsed-argument list before releasing the return value...

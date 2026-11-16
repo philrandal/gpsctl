@@ -246,7 +246,7 @@ static baudTrans validRates[] = {
 // constant is returned.  Otherwise, -1 is returned.
 extern int getBaudRateCookie( int baudRate ) {
 
-    for( int i = 0; i < ARRAY_SIZE( validRates ); i++ ) {
+    for( size_t i = 0; i < ARRAY_SIZE( validRates ); i++ ) {
         if( baudRate == validRates[i].baud )
             return (int) validRates[i].cookie;
     }
@@ -258,8 +258,8 @@ extern int getBaudRateCookie( int baudRate ) {
 // a valid cookie.  If the given cookie is valid, the actual baud rate is returned as an int in info.
 extern slReturn getBaudRate( int cookie ) {
 
-    for( int i = 0; i < ARRAY_SIZE( validRates ); i++ ) {
-        if( cookie == validRates[i].cookie )
+    for( size_t i = 0; i < ARRAY_SIZE( validRates ); i++ ) {
+        if( cookie == (int) validRates[i].cookie )
             return makeOkInfoReturn( int2info( validRates[i].baud ) );
     }
     return makeErrorFmtMsgReturn( ERR_ROOT, "unrecognized baud rate cookie: %d", cookie );
@@ -379,7 +379,7 @@ extern slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbos
             return makeOkInfoReturn( bool2info( false ) );
         }
 
-        char c = getReturnInfoChar( rscResp );
+        unsigned char c = (unsigned char) getReturnInfoChar( rscResp );
         freeReturn( rscResp );
         if( ((c >= 32) && (c <= 127)) || (c == 10) || (c == 9) || (c == 13) )
             count++;
@@ -406,7 +406,7 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
     // here - this is the only place that can...
     if( verbosity >= 1 ) printf( "Trying baud rates from 921600 to %d...\n", minBaud );
 
-    for( int i = 0; (i < ARRAY_SIZE( bauds ) ) && (bauds[i] >= minBaud); i++ ) {
+    for( size_t i = 0; (i < ARRAY_SIZE( bauds ) ) && (bauds[i] >= minBaud); i++ ) {
 
         if( verbosity >= 2 ) printf( "Trying %d baud...\n", bauds[i] );
 

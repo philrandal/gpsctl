@@ -60,7 +60,7 @@ typedef struct {
     errInfo error;
 } longRecord;
 
-static errInfo NOERR = { NULL, NULL, 0 };
+static errInfo NOERR = { .fileName = NULL, .functionName = NULL, .lineNumber = 0 };
 
 // The basic method for creating a return value, called by the exposed convenience functions for making particular kinds
 // of return values that don't include formatted messages.
@@ -125,7 +125,7 @@ static slReturn makeFmtReturn( returnType type, errInfo error, void* info, const
 
 
 // Returns an error information structure with the given values.
-extern errorInfo_slReturn createErrorInfo( char* fileName, char* functionName, uint32_t lineNumber, slReturn cause ) {
+extern errorInfo_slReturn createErrorInfo( const char* fileName, const char* functionName, uint32_t lineNumber, slReturn cause ) {
     errorInfo_slReturn result;
     result.cause = cause;
     result.lineNumber = lineNumber;
@@ -201,7 +201,7 @@ extern void printReturn( slReturn value, bool includeCaused, bool includeDebug )
     // finally, it's time to print our actual message...
     char* prefix = root ? (isErrorReturn( value ) ? "Error: " : "") : "   Caused: ";
     if( includeDebug && isErrorReturn( value ) )
-        printf( "%s%s  (%s:%s:%d)\n", prefix, msg, err.fileName, err.functionName, err.lineNumber );
+        printf( "%s%s  (%s:%s:%u)\n", prefix, msg, err.fileName, err.functionName, (unsigned) err.lineNumber );
     else
         printf( "%s%s\n", prefix, msg );
 }
@@ -238,7 +238,7 @@ extern void freeReturn( slReturn value ) {
 
 
 // Make an Ok return value with no message and no info.
-extern slReturn makeOkReturn() {
+extern slReturn makeOkReturn( void ) {
     return makeReturn( Ok, NOERR, NULL, NULL );
 }
 
@@ -250,7 +250,7 @@ extern slReturn makeErrorReturn( errInfo error ) {
 
 
 // Make a Warning return value with no message and no info.
-extern slReturn makeWarningReturn() {
+extern slReturn makeWarningReturn( void ) {
     return makeReturn( Warning, NOERR, NULL, NULL );
 }
 

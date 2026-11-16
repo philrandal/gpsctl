@@ -14,13 +14,13 @@ typedef void* slReturn;         // managed by slReturn internally; users shouldn
 // contains error information other than client-generated error message...
 typedef struct {
     slReturn cause;
-    char* fileName;
-    char* functionName;
+    const char* fileName;
+    const char* functionName;
     uint32_t lineNumber;
 } errorInfo_slReturn;
 
 
-errorInfo_slReturn createErrorInfo( char*, char*, uint32_t, slReturn );
+errorInfo_slReturn createErrorInfo( const char*, const char*, uint32_t, slReturn );
 bool isOkReturn( slReturn );
 bool isErrorReturn( slReturn );
 bool isWarningReturn( slReturn );
@@ -28,9 +28,9 @@ const char* getReturnMsg( slReturn );
 void* getReturnInfo( slReturn );
 void printReturn( slReturn, bool, bool );
 void freeReturn( slReturn  );
-slReturn makeOkReturn();
+slReturn makeOkReturn( void );
 slReturn makeErrorReturn( errorInfo_slReturn );
-slReturn makeWarningReturn();
+slReturn makeWarningReturn( void );
 slReturn makeOkMsgReturn( const char* );
 slReturn makeErrorMsgReturn( errorInfo_slReturn, const char* );
 slReturn makeWarningMsgReturn( const char* );
@@ -47,7 +47,7 @@ slReturn makeOkInfoFmtMsgReturn( void*, const char*, ... );
 slReturn makeErrorInfoFmtMsgReturn( errorInfo_slReturn, void*, const char*, ... );
 slReturn makeWarningInfoFmtMsgReturn( void*, const char*, ... );
 
-#define ERR_CAUSE(x) (createErrorInfo( __FILE__, (char*)__func__, __LINE__, (x) ) )
+#define ERR_CAUSE(x) (createErrorInfo( __FILE__, __func__, __LINE__, (x) ) )
 #define ERR_ROOT (ERR_CAUSE(NULL))
 
 #define getReturnInfoBool(x) ((bool)(uintptr_t)getReturnInfo(x))

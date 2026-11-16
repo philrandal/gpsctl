@@ -88,7 +88,7 @@ static ubxChecksum calcFletcherChecksum(const ubxMsg msg) {
     updateUbxChecksum((byte) (size_slBuffer(msg.body) >> 8), &result);
 
     // and finally the body itself...
-    for (int i = 0; i < size_slBuffer(msg.body); i++) {
+    for (size_t i = 0; i < size_slBuffer(msg.body); i++) {
         updateUbxChecksum(buffer_slBuffer(msg.body)[i], &result);
     }
 
@@ -96,7 +96,7 @@ static ubxChecksum calcFletcherChecksum(const ubxMsg msg) {
 }
 
 
-ubxMsg createUbxMsg(ubxType type, slBuffer *body) {
+static ubxMsg createUbxMsg(ubxType type, slBuffer *body) {
 
     ubxMsg result;
     result.type     = type;

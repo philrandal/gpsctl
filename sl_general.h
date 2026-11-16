@@ -43,7 +43,7 @@ void append( char** s1, const char* s2 );
 
 void sleep_ns( int ns );
 
-long long currentTimeMs();
+long long currentTimeMs( void );
 
 bool strempty( const char* str );
 
