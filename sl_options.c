@@ -172,12 +172,12 @@ static slReturn addOptionRecord( state_slOptions *state, const optionDef_slOptio
         return errorMessageHelper(ERR_ROOT, state->debug, "parsing", "exceeded maximum number of options (%d)", MAX_SL_OPTIONS );
 
     // make sure this definition hasn't already been recorded the max number of times...
-    int hits = 0;
+    unsigned int hits = 0;  // (unsigned, like the maxCount it is compared with)
     for( int i = 0; i < state->numOptionRecords; i++ )
         if( def == (state->optionRecords[i]).def )
             hits++;
     if( hits >= def->maxCount )
-        return errorMessageHelper(ERR_ROOT, state->debug, "parsing", "too many occurrences of option \"%s\": max is %d",
+        return errorMessageHelper(ERR_ROOT, state->debug, "parsing", "too many occurrences of option \"%s\": max is %u",
                                    tempName_slOptions( def ), def->maxCount );
 
     // ok, all is well - record it...
