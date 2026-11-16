@@ -1680,8 +1680,9 @@ static slReturn sendUartBaudRate(int fdPort, unsigned int newBaudRate) {
 // its own: the receiver may acknowledge a command it has not applied, and that ACK is easily lost when the host
 // switches rate.  So the new rate is confirmed by asking the receiver what it is actually using, and a missing
 // answer is asked for again before it is believed, because the receiver can be briefly deaf at the new rate.  Only
-// if it still won't confirm is the host put back where the receiver is and the change sent once more; if that fails
-// too the host is left there, so that the port is still usable.
+// if it still won't confirm is the host put back where the receiver is and the change sent once more.  If that fails
+// too, the receiver is asked which rate it actually answers on, and the host is left there, so that the port is still
+// usable.
 extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verbosity) {
 
     // find out where we are now, both to report it and so that the host can be put back there if the change fails...
@@ -1728,15 +1729,49 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
             return makeOkReturn();
         }
 
-        // the change didn't take, so put the host back where the receiver still is.  That leaves a usable port for
-        // the retry, and for the caller if this was the last attempt...
+        // The change didn't take, or the replies were lost after it did.  Put the host back at the old rate for the
+        // retry; whether that is really where the receiver is gets settled below, once the retry has had its chance...
         if (verbosity >= 2)
-            printf("GPS did not change to %u baud, %s...\n", newBaudRate, (attempt == 0) ? "retrying" : "giving up");
+            printf("GPS did not answer at %u baud, %s...\n", newBaudRate, (attempt == 0) ? "retrying" : "giving up");
         slReturn backResp = setTermOptionsBaud(fdPort, (int) oldBaudRate);
         if (isErrorReturn(backResp))
             return makeErrorMsgReturn(ERR_CAUSE(backResp), "Problem restoring the host baud rate after a failed change");
         freeReturn(backResp);
     }
 
-    return makeErrorFmtMsgReturn(ERR_ROOT, "GPS did not change to %u baud (it is still at %u)", newBaudRate, oldBaudRate);
+    // Neither attempt could confirm the new rate, but that does not mean the receiver is still at the old one: it may
+    // have taken the change and lost the replies.  The host is at the old rate now (each failed attempt put it back),
+    // so ask there first, and if that gets no answer, ask at the new rate: that keeps the host at a rate the receiver
+    // still answers on whenever there is one...
+    slReturn backResp = setTermOptionsBaud(fdPort, (int) oldBaudRate);
+    if (isErrorReturn(backResp))
+        return makeErrorMsgReturn(ERR_CAUSE(backResp), "Problem restoring the host baud rate after a failed change");
+    freeReturn(backResp);
+
+    unsigned int probedBaudRate = 0;
+    slReturn askResp = pollUartBaudRate(fdPort, &probedBaudRate);
+    bool answered = isOkReturn(askResp);
+    freeReturn(askResp);
+
+    if (!answered) {
+        slReturn newResp = setTermOptionsBaud(fdPort, (int) newBaudRate);
+        if (isErrorReturn(newResp))
+            return makeErrorMsgReturn(ERR_CAUSE(newResp), "Problem changing the host baud rate after a failed change");
+        freeReturn(newResp);
+
+        askResp = pollUartBaudRate(fdPort, &probedBaudRate);
+        answered = isOkReturn(askResp);
+        freeReturn(askResp);
+    }
+
+    // if the receiver reports the rate we asked for, the change did take, and only its confirmations were lost...
+    if (answered && (probedBaudRate == newBaudRate)) {
+        if (verbosity >= 1) printf("Successfully changed baud rate to %u...\n", newBaudRate);
+        return makeOkReturn();
+    }
+
+    if (answered)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "GPS did not change to %u baud (it is at %u)", newBaudRate, probedBaudRate);
+    return makeErrorFmtMsgReturn(ERR_ROOT, "GPS did not change to %u baud (it answers at neither %u nor %u)",
+                                 newBaudRate, oldBaudRate, newBaudRate);
 }
