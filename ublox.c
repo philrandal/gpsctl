@@ -286,20 +286,20 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
 }
 
 
-// Waits for the ACK/NAK that refers to the given message type.  An ACK or NAK for some other message (one left
-// over from an earlier command, or from a poll) is not ours to interpret and is ignored, so that a stale ACK can
-// never be mistaken for the answer to the command we just sent.  Anything else is most likely a late reply to an
-// earlier poll, so it's remembered and ignored too, until our waiting time runs out.
+// Waits for the ACK/NAK that refers to the given message type, for at most max_ms milliseconds.  An ACK or NAK for
+// some other message (one left over from an earlier command, or from a poll) is not ours to interpret and is
+// ignored, so that a stale ACK can never be mistaken for the answer to the command we just sent.  Anything else is
+// most likely a late reply to an earlier poll, so it's remembered and ignored too, until our waiting time runs out.
 #define ACK_WAIT_MS 1500
 #define POLL_ACK_DRAIN_MS 250
-static slReturn ubxAckWait(int fdPort, ubxType sentType) {
+static slReturn ubxAckWait(int fdPort, ubxType sentType, int max_ms) {
 
     long long startTime = currentTimeMs();
     ubxType lastOther = { 0, 0 };
     while (true) {
 
         // work out what's left of our waiting time, so that ignoring stray messages can't extend it...
-        long long remaining = ACK_WAIT_MS - (currentTimeMs() - startTime);
+        long long remaining = max_ms - (currentTimeMs() - startTime);
         if (remaining <= 0) {
             if ((lastOther.class != 0) || (lastOther.id != 0))
                 return makeErrorFmtMsgReturn(ERR_ROOT, "timed out waiting for ACK, last message received was 0x%02x-0x%02x",
@@ -380,7 +380,7 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
 static slReturn sendUbxAckedMsg(int fdPort, ubxMsg msg) {
     slReturn result = sendUbxMsg(fdPort, msg);
     if (isErrorReturn(result)) return result;
-    return ubxAckWait(fdPort, msg.type);
+    return ubxAckWait(fdPort, msg.type, ACK_WAIT_MS);
 }
 
 
@@ -1659,13 +1659,17 @@ static slReturn sendUartBaudRate(int fdPort, unsigned int newBaudRate) {
         return makeErrorMsgReturn(ERR_CAUSE(sendResp), "Problem sending message to change baud rate");
     freeReturn(sendResp);
 
-    // change our host's baud rate to the new one, then wait (best effort) for the ACK...
+    // change our host's baud rate to the new one, then give the ACK a moment to show up (best effort).  It proves
+    // nothing, and it is easily lost: the receiver may send it before the change, in which case the flush in
+    // setTermOptionsBaud() throws it away, or at the old rate, in which case the host reads garbage.  So wait a short
+    // time rather than the full ACK wait - the change itself is confirmed by asking the receiver what rate it is
+    // really using, which is what the caller does next...
     slReturn stoResp = setTermOptionsBaud(fdPort, (int) newBaudRate);
     if (isErrorReturn(stoResp))
         return makeErrorMsgReturn(ERR_CAUSE(stoResp), "Problem changing the host baud rate");
     freeReturn(stoResp);
 
-    slReturn ackResp = ubxAckWait(fdPort, ut_CFG_PRT);
+    slReturn ackResp = ubxAckWait(fdPort, ut_CFG_PRT, POLL_ACK_DRAIN_MS);
     freeReturn(ackResp);
 
     return makeOkReturn();
@@ -1688,6 +1692,14 @@ extern slReturn ubxChangeBaudRate(int fdPort, unsigned int newBaudRate, int verb
     freeReturn(oldResp);
 
     if (verbosity >= 3) printf("GPS UART is currently at %u baud...\n", oldBaudRate);
+
+    // if it is already at the rate we want, there is nothing to send.  Rewriting the same configuration would only
+    // cost a write and an ACK wait - and if that write went unanswered, it would report a change that was never
+    // needed as a failure...
+    if (oldBaudRate == newBaudRate) {
+        if (verbosity >= 1) printf("GPS UART is already at %u baud...\n", newBaudRate);
+        return makeOkReturn();
+    }
 
     for (int attempt = 0; attempt < 2; attempt++) {
 
