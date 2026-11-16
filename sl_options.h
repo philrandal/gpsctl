@@ -70,6 +70,6 @@ bool hasShortOption_slOptions( char, const state_slOptions* );
 bool hasLongOption_slOptions( const char*, const state_slOptions* );
 char* getName_slOptions( const optionDef_slOptions* );
 
-slReturn process_slOptions( int argc, const char *argv[], const psloConfig* config );
+slReturn process_slOptions( int argc, const char *const argv[], const psloConfig* config );
 
 #endif //GPSCTL_SL_OPTIONS_H

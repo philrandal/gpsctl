@@ -23,7 +23,7 @@ typedef struct {
 
 
 struct state_slOptions {
-    const optionDef_slOptions *optDefs;             // the option definitions, possibly enhanced
+    optionDef_slOptions *optDefs;                   // the option definitions, possibly enhanced
     int remainingArgs;                              // the number of arguments we haven't yet processed
     int currentArgIndex;                            // the index of the argument we're currently working on
     procOptionRecord optionRecords[MAX_SL_OPTIONS]; // our list of parsed option records
@@ -320,10 +320,6 @@ static slReturn helpAction( const optionDef_slOptions *defs, const psloConfig *c
     bool gotOptArg = false;
     for( const optionDef_slOptions *curDef = defs; curDef->maxCount != 0; curDef++ ) {
 
-        // first we make our format string...
-        char *format;
-        asprintf( &format, "  %%-%ds %%s%%s\n", maxWidth + 2 );
-
         // now we make the name/argument string pieces...
         char *name = getName_slOptions( curDef );
         if( name[1] == '-' ) {
@@ -351,12 +347,11 @@ static slReturn helpAction( const optionDef_slOptions *defs, const psloConfig *c
         if( curDef->maxCount == 1 )
             repeat = "";
         else {
-            asprintf( &repeat, " (may repeat up to %d times)", curDef->maxCount );
+            if( asprintf( &repeat, " (may repeat up to %u times)", (unsigned) curDef->maxCount ) < 0 ) repeat = "";
         }
 
         // finally, we actually do it...
-        printf( format, namearg, curDef->helpMsg, repeat );
-        free( format );
+        printf( "  %-*s %s%s\n", maxWidth + 2, namearg, curDef->helpMsg, repeat );
         free( name );
         free( namearg );
         if( strlen( repeat ) > 0 ) free( repeat );
@@ -527,7 +522,7 @@ static void checkOptionalDefEntry( optionDef_slOptions **optDefs, int *count, in
 }
 
 
-static const optionDef_slOptions *ensureOptDefs( const psloConfig *config ) {
+static optionDef_slOptions *ensureOptDefs( const psloConfig *config ) {
 
     // how many client-defined option definitions are there?
     int numOptDefs;
@@ -771,7 +766,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
 #define DEBUG (state.debug)
 #define EH( result, class )                                                                     \
     if ( isErrorReturn( result )) {                                                             \
-        free( (void*) state.optDefs );                                                          \
+        free( state.optDefs );                                                          \
         free( args->argv );                                                                     \
         free( args );                                                                           \
         return errorMessageHelper( ERR_CAUSE( result ), DEBUG, class, "fatal error" );          \
@@ -780,7 +775,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
         freeReturn( result );                                                                   \
     }
 
-extern slReturn process_slOptions( int argc, const char *argv[], const psloConfig *config ) {
+extern slReturn process_slOptions( int argc, const char *const argv[], const psloConfig *config ) {
 
     // validate the client's supplied configuration, to the extent we can...
     if( config->options & SL_OPTIONS_CONFIG_DEBUG) printf( "Validating client-supplied configuration\n" );
@@ -788,7 +783,7 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
     if( isErrorReturn( response )) return response;
 
     // get copy of our option definitions, possibly enhanced...
-    const optionDef_slOptions *optDefs = ensureOptDefs( config );
+    optionDef_slOptions *optDefs = ensureOptDefs( config );
 
     // make a local (and mutable) copy of the original argv...
     char *argv_copy[argc];
@@ -808,7 +803,7 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
     if( DEBUG) printf( "Starting command line option parsing phase\n" );
     response = parsePhase( argc, config, &state );
     if( isErrorReturn( response )) {
-        free((void *) state.optDefs );
+        free( state.optDefs );
         return response;
     }
 
@@ -831,7 +826,7 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
         }
     }
     if( informational ) {
-        free((void *) state.optDefs );
+        free( state.optDefs );
         return makeOkInfoReturn( args );
     }
 
@@ -904,7 +899,7 @@ extern slReturn process_slOptions( int argc, const char *argv[], const psloConfi
         EH( ar, "action" )
     }
 
-    free((void *) state.optDefs );
+    free( state.optDefs );
     return makeOkInfoReturn( args );
 }
 
