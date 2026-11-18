@@ -642,6 +642,20 @@ extern int getConfigBool(const char *key, int notfound) {
 }
 
 
+// Reads a channel count from the configuration.  It ends up in a single byte of the CFG-GNSS message, and the int that
+// number that iniparser returns used to be truncated to fit: "maximum channels = 300" was sent as 44.  A value outside
+// 0..255 is reported (on stderr) and the default is used instead.  (It is read as a long: iniparser_getint() itself
+// wraps a long value to an int, so 2^32 + 10 would have arrived as a perfectly good 10.)
+static int getConfigChannels(const char *key, int notfound) {
+    long value = iniparser_getlongint(gpsctlConf, key, notfound);
+    if ((value < 0) || (value > 255)) {
+        fprintf(stderr, "Warning: %s = %ld is outside 0..255; using the default (%d)\n", key, value, notfound);
+        return notfound;
+    }
+    return (int) value;
+}
+
+
 // Configure satellites
 extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
 
@@ -698,8 +712,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "gps:minimum channels", 8);
-                maxch = iniparser_getint(gpsctlConf, "gps:maximum channels", 16);
+                minch = getConfigChannels("gps:minimum channels", 8);
+                maxch = getConfigChannels("gps:maximum channels", 16);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 8...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 16...
 
@@ -713,8 +727,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "sbas:minimum channels", 1);
-                maxch = iniparser_getint(gpsctlConf, "sbas:maximum channels", 3);
+                minch = getConfigChannels("sbas:minimum channels", 1);
+                maxch = getConfigChannels("sbas:maximum channels", 3);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 8...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 16...
 
@@ -727,8 +741,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "galileo:minimum channels", 4);
-                maxch = iniparser_getint(gpsctlConf, "galileo:maximum channels", 8);
+                minch = getConfigChannels("galileo:minimum channels", 4);
+                maxch = getConfigChannels("galileo:maximum channels", 8);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 4...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 8...
 
@@ -741,8 +755,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "beidou:minimum channels", 8);
-                maxch = iniparser_getint(gpsctlConf, "beidou:maximum channels", 16);
+                minch = getConfigChannels("beidou:minimum channels", 8);
+                maxch = getConfigChannels("beidou:maximum channels", 16);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 8...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 16...
 
@@ -756,8 +770,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "imes:minimum channels", 0);
-                maxch = iniparser_getint(gpsctlConf, "imes:maximum channels", 8);
+                minch = getConfigChannels("imes:minimum channels", 0);
+                maxch = getConfigChannels("imes:maximum channels", 8);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 0...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 8...
 
@@ -771,8 +785,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "qzss:minimum channels", 0);
-                maxch = iniparser_getint(gpsctlConf, "qzss:maximum channels", 3);
+                minch = getConfigChannels("qzss:minimum channels", 0);
+                maxch = getConfigChannels("qzss:maximum channels", 3);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 0...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 3...
 
@@ -785,8 +799,8 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
                 put_uint32_slBuffer(b, o + 4, flags);
 
                 // set our min and max channels...
-                minch = iniparser_getint(gpsctlConf, "glonass:minimum channels", 8);
-                maxch = iniparser_getint(gpsctlConf, "glonass:maximum channels", 14);
+                minch = getConfigChannels("glonass:minimum channels", 8);
+                maxch = getConfigChannels("glonass:maximum channels", 14);
                 put_uint8_slBuffer(b, o + 1,  minch);  // min of 8...
                 put_uint8_slBuffer(b, o + 2,  maxch);  // max of 14...
 
