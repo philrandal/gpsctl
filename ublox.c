@@ -626,6 +626,22 @@ extern slReturn ubxConfigNMEAVersion(int fdPort, int verbosity, uint8_t nmeaVers
 }
 
 
+// Reads a yes/no value from the configuration.  iniparser_getboolean() decides on the first character(s) only and quietly
+// returns the default for any other text, so "enabled = disabled" would leave a default-on setting ON.  A recognised
+// value gives the same answer whatever default is passed, so asking with both defaults tells us whether the text was
+// understood; if it wasn't, say so (on stderr) rather than silently doing something the user didn't ask for.  The
+// result is the same as iniparser_getboolean()'s.
+extern int getConfigBool(const char *key, int notfound) {
+    int result = iniparser_getboolean(gpsctlConf, key, notfound);
+    if (iniparser_find_entry(gpsctlConf, key) &&
+        (iniparser_getboolean(gpsctlConf, key, 0) != iniparser_getboolean(gpsctlConf, key, 1))) {
+        fprintf(stderr, "Warning: %s = \"%s\" is not a recognised yes/no value (use yes/no, true/false, on/off or 1/0); "
+                        "using the default\n", key, iniparser_getstring(gpsctlConf, key, ""));
+    }
+    return result;
+}
+
+
 // Configure satellites
 extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
 
@@ -634,14 +650,14 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     int minch, maxch, enabled, beidou_enabled, galileo_enabled, glonass_enabled, gps_enabled, nmeaver;
     double dnmeaver;
 
-    gps_enabled = iniparser_getboolean(gpsctlConf, "gps:enabled", true);
-    galileo_enabled = iniparser_getboolean(gpsctlConf, "galileo:enabled", true);
+    gps_enabled = getConfigBool("gps:enabled", true);
+    galileo_enabled = getConfigBool("galileo:enabled", true);
 
     // only one of BeiDou and Glonass can be enabled at the same time if GPS or Galileo are enabled
-    beidou_enabled = iniparser_getboolean(gpsctlConf, "beidou:enabled", false);
-    glonass_enabled = iniparser_getboolean(gpsctlConf, "glonass:enabled", true);
+    beidou_enabled = getConfigBool("beidou:enabled", false);
+    glonass_enabled = getConfigBool("glonass:enabled", true);
     if (beidou_enabled && glonass_enabled && (gps_enabled || galileo_enabled)) {
-      if (iniparser_getboolean(gpsctlConf, "gpsctl:prefer beidou to glonass if both enabled", false))
+      if (getConfigBool("gpsctl:prefer beidou to glonass if both enabled", false))
         glonass_enabled = false;
       else
         beidou_enabled = false;
@@ -692,7 +708,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
             case SBAS:
 
                 // disable everything else...
-                enabled = iniparser_getboolean(gpsctlConf, "sbas:enabled", false);
+                enabled = getConfigBool("sbas:enabled", false);
                 flags = (uint32_t) setBit_slBits(get_uint32_slBuffer(b, o + 4), 0, enabled);
                 put_uint32_slBuffer(b, o + 4, flags);
 
@@ -735,7 +751,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
             case IMES:
 
                 // disable everything else...
-                enabled = iniparser_getboolean(gpsctlConf, "imes:enabled", false);
+                enabled = getConfigBool("imes:enabled", false);
                 flags = (uint32_t) setBit_slBits(get_uint32_slBuffer(b, o + 4), 0, enabled);
                 put_uint32_slBuffer(b, o + 4, flags);
 
@@ -750,7 +766,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
             case QZSS:
 
                 // disable everything else...
-                enabled = iniparser_getboolean(gpsctlConf, "qzss:enabled", false);
+                enabled = getConfigBool("qzss:enabled", false);
                 flags = (uint32_t) setBit_slBits(get_uint32_slBuffer(b, o + 4), 0, enabled);
                 put_uint32_slBuffer(b, o + 4, flags);
 
@@ -945,7 +961,7 @@ extern slReturn ubxConfigForTiming(int fdPort, int verbosity) {
     };
     for (size_t i = 0; i < sizeof(nmeaMsgs) / sizeof(nmeaMsgs[0]); i++) {
         resp = ubxEnableNMEAMsg(fdPort, verbosity, nmeaMsgs[i].id,
-                                iniparser_getboolean(gpsctlConf, nmeaMsgs[i].key, nmeaMsgs[i].def));
+                                getConfigBool(nmeaMsgs[i].key, nmeaMsgs[i].def));
         if (isErrorReturn(resp)) {
             if (verbosity >= 1)
                 printf("Warning: problem configuring NMEA message output for timing: %s\n", getReturnMsg(resp));

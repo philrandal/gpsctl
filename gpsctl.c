@@ -1689,7 +1689,7 @@ int main(int argc, char *argv[]) {
     }
     clientData.verbosity  = iniparser_getint(gpsctlConf, "gpsctl:verbosity", 1);
     clientData.syncMethod = iniparser_getint(gpsctlConf, "gpsctl:sync method", syncUBX);
-    clientData.nmea =   iniparser_getboolean(gpsctlConf, "nmea:enabled", -1);
+    clientData.nmea =   getConfigBool("nmea:enabled", -1);
     // iniparser_dump_ini(gpsctlConf, stdout);
     psloConfig config = {
             getOptionDefs(&clientData),                         // our command-line option definitions...
