@@ -642,13 +642,23 @@ extern int getConfigBool(const char *key, int notfound) {
 }
 
 
-// Reads an integer setting from the configuration and checks that it fits the field it is going into.  iniparser_getint()
-// returns an int, and putting that into a byte or a 16-bit field used to truncate it silently: "maximum channels = 300"
-// was sent as 44, and a negative unsigned value became a huge one.  A value outside min..max is reported (on stderr)
-// and the default is used instead.  (It is read as a long: iniparser_getint() itself wraps a long value to an int, so
-// 2^32 + 10 would have arrived as a perfectly good 10.)
+// Reads an integer setting from the configuration and checks that it is a number that fits the field it is going into.
+// iniparser_getint() returns an int, and putting that into a byte or a 16-bit field used to truncate it silently:
+// "maximum channels = 300" was sent as 44, and a negative unsigned value became a huge one.  It also reads text that
+// isn't a number as 0 ("abc") or as its numeric prefix ("12abc" is 12), so a typo quietly became a setting.  Text that
+// isn't entirely a number, or a value outside min..max, is reported (on stderr) and the default is used instead.
+// Numbers are read as iniparser reads them (strtol, base 0: decimal, 0x hex, leading-0 octal), as a long: the int
+// that iniparser_getint() returns wraps a long value, so 2^32 + 10 would have arrived as a perfectly good 10.
 static int getConfigInt(const char *key, long notfound, long min, long max) {
-    long value = iniparser_getlongint(gpsctlConf, key, notfound);
+    const char *text = iniparser_getstring(gpsctlConf, key, NULL);
+    if (text == NULL) return (int) notfound;                         // not in the configuration: the default
+
+    char *end;
+    long value = strtol(text, &end, 0);
+    if ((end == text) || (*end != 0)) {
+        fprintf(stderr, "Warning: %s = \"%s\" is not a whole number; using the default (%ld)\n", key, text, notfound);
+        return (int) notfound;
+    }
     if ((value < min) || (value > max)) {
         fprintf(stderr, "Warning: %s = %ld is outside %ld..%ld; using the default (%ld)\n", key, value, min, max, notfound);
         return (int) notfound;
