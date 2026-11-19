@@ -1,3 +1,10 @@
+2026-11-19 - Phil Randal and Claude - Release 1.37
+    Check the verbosity and sync method settings too
+    Report integer settings that aren't numbers
+    Check every narrowing integer setting against the field it fills
+    Reject out-of-range GNSS channel counts instead of wrapping them
+    Warn when a yes/no configuration value isn't recognised
+
 2026-11-16 - Phil Randal and Claude and DeepSeek - Release 1.36
     Fix strict warnings
     flush after tcsetattr in setTermOptionsBaud/setTermOptions
