@@ -1687,8 +1687,8 @@ int main(int argc, char *argv[]) {
             exit(EXIT_FAILURE);
         }
     }
-    clientData.verbosity  = iniparser_getint(gpsctlConf, "gpsctl:verbosity", 1);
-    clientData.syncMethod = iniparser_getint(gpsctlConf, "gpsctl:sync method", syncUBX);
+    clientData.verbosity  = getConfigInt("gpsctl:verbosity", 1, INT_MIN, INT_MAX);               // (any int, but it must be a number)
+    clientData.syncMethod = (syncType) getConfigInt("gpsctl:sync method", syncUBX, syncNone, syncUBX);
     clientData.nmea =   getConfigBool("nmea:enabled", -1);
     // iniparser_dump_ini(gpsctlConf, stdout);
     psloConfig config = {

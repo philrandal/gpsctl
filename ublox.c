@@ -649,7 +649,7 @@ extern int getConfigBool(const char *key, int notfound) {
 // isn't entirely a number, or a value outside min..max, is reported (on stderr) and the default is used instead.
 // Numbers are read as iniparser reads them (strtol, base 0: decimal, 0x hex, leading-0 octal), as a long: the int
 // that iniparser_getint() returns wraps a long value, so 2^32 + 10 would have arrived as a perfectly good 10.
-static int getConfigInt(const char *key, long notfound, long min, long max) {
+extern int getConfigInt(const char *key, long notfound, long min, long max) {
     const char *text = iniparser_getstring(gpsctlConf, key, NULL);
     if (text == NULL) return (int) notfound;                         // not in the configuration: the default
 
