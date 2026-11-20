@@ -8,6 +8,8 @@
 #define _DARWIN_C_SOURCE
 #define _POSIX_C_SOURCE 199309L
 
+#include <limits.h>
+#include <math.h>
 #include "ublox.h"
 
 // for best time pulse:
@@ -44,6 +46,7 @@
 #define CFG_NAV5_MAX_MS     2000
 #define MON_VER_MAX_MS      2000
 #define MON_VER_SYNC_MAX_MS 1200
+#define UBX_SYNC_BACKLOG_CHARS 1024  // allowance for queued output ahead of a reply, in characters at the line rate
 #define CFG_GNSS_MAX_MS     1000
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
@@ -177,6 +180,30 @@ static void queueReplay(ubxReplay *replay, const byte *hdr, slBuffer *body, cons
 }
 
 
+// Queues the four header bytes (class, id, length) that followed a B5 62 pair we've decided wasn't a frame start, for
+// another look ahead of anything still unread on the port.  Anything not yet consumed from an earlier replay is kept,
+// after the new bytes.
+static void queueReplayHeader(ubxReplay *replay, const byte *hdr) {
+
+    size_t leftover = replay->len - replay->pos;
+    byte *data = safeMalloc(4 + leftover);
+
+    memcpy(data, hdr, 4);
+    if (leftover > 0) memcpy(data + 4, replay->data + replay->pos, leftover);
+
+    free(replay->data);
+    replay->data = data;
+    replay->len  = 4 + leftover;
+    replay->pos  = 0;
+}
+
+
+// The longest message body we'll believe.  The biggest the receiver sends us (NAV-SAT with every channel, CFG-GNSS,
+// MON-VER with its extensions) is well under 4 KB, so a longer length means the B5 62 before it was noise, and waiting
+// for that many bytes could swallow a genuine reply that arrives meanwhile.
+#define UBX_MAX_BODY 4096
+
+
 // Waits up to max_ms for a UBX message to be received.  The body (an slBuffer) is only allocated if returns Ok.
 #define UBX_SYNC1 (0xB5)
 #define UBX_SYNC2 (0x62)
@@ -232,6 +259,13 @@ static slReturn rcvUbxMsgReplay(int fdPort, ubxMsg* msg, int max_ms, ubxReplay *
         msg->type = type;
         size_t length = hdr[2] | (hdr[3] << 8);  // little-endian...
 
+        // a length no real message has means this wasn't a frame start: look through the header bytes again instead
+        // of waiting for up to 64 KB of "body" that would swallow whatever genuine message comes next...
+        if (length > UBX_MAX_BODY) {
+            queueReplayHeader(replay, hdr);
+            continue;
+        }
+
         // now get the body...
         msg->body = create_slBuffer(length, LittleEndian);
         rubResp = readUbxBytes(fdPort, replay, buffer_slBuffer(msg->body), &count, length, max_ms, startTime, startTime + max_ms - currentTimeMs());
@@ -283,6 +317,20 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
     slReturn result = rcvUbxMsgReplay(fdPort, msg, max_ms, &replay);
     free(replay.data);
     return result;
+}
+
+
+// Extra time to allow, on top of a fixed wait for a reply, for output the receiver has already queued ahead of it: the
+// time to receive UBX_SYNC_BACKLOG_CHARS characters at the port's current rate.  Negligible at 115200 baud and above
+// (under 90 ms), but about a second at 9600 baud, where the line carries only 960 characters a second and a reply can
+// sit behind a second's worth of NMEA.  Returns 0 if the rate can't be read.
+static long long lineBacklogMs(int fdPort) {
+
+    speedInfo si;
+    slReturn gsiResp = getSpeedInfo(fdPort, &si);
+    long long ms = isOkReturn(gsiResp) ? (long long) si.nsChar * UBX_SYNC_BACKLOG_CHARS / 1000000 : 0;
+    freeReturn(gsiResp);
+    return ms;
 }
 
 
@@ -380,7 +428,7 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
 static slReturn sendUbxAckedMsg(int fdPort, ubxMsg msg) {
     slReturn result = sendUbxMsg(fdPort, msg);
     if (isErrorReturn(result)) return result;
-    return ubxAckWait(fdPort, msg.type, ACK_WAIT_MS);
+    return ubxAckWait(fdPort, msg.type, (int) (ACK_WAIT_MS + lineBacklogMs(fdPort)));  // (queued output can delay the ACK at slow rates)
 }
 
 
@@ -411,6 +459,7 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     // may also still have an ACK-ACK, or a reply to an earlier poll, queued up or in flight.  So keep reading
     // until we see the response we actually asked for, noting any ACK-ACK along the way...
     long long startTime = currentTimeMs();
+    max_ms += (int) lineBacklogMs(fdPort);  // (queued output can delay the reply at slow rates)
     bool gotAck = false;
     ubxType unexpectedType = {0, 0};
     bool sawUnexpected = false;
@@ -647,6 +696,7 @@ extern int getConfigBool(const char *key, int notfound) {
 // "maximum channels = 300" was sent as 44, and a negative unsigned value became a huge one.  It also reads text that
 // isn't a number as 0 ("abc") or as its numeric prefix ("12abc" is 12), so a typo quietly became a setting.  Text that
 // isn't entirely a number, or a value outside min..max, is reported (on stderr) and the default is used instead.
+// Anything after the number (a unit, say) must be a comment: write "56 ; nanoseconds", not "56 nanoseconds".
 // Numbers are read as iniparser reads them (strtol, base 0: decimal, 0x hex, leading-0 octal), as a long: the int
 // that iniparser_getint() returns wraps a long value, so 2^32 + 10 would have arrived as a perfectly good 10.
 extern int getConfigInt(const char *key, long notfound, long min, long max) {
@@ -664,6 +714,24 @@ extern int getConfigInt(const char *key, long notfound, long min, long max) {
         return (int) notfound;
     }
     return (int) value;
+}
+
+
+// Reads a decimal setting from the configuration, as strictly as getConfigInt() reads an integer.  iniparser_getdouble()
+// uses atof(), which reads "abc" as 0 and "2.5m" as 2.5, so a typo quietly became a setting.  Text that isn't entirely a
+// finite number is reported (on stderr) and the default is used instead.  Units or other remarks belong in a comment
+// (after ';' or '#').
+extern double getConfigDouble(const char *key, double notfound) {
+    const char *text = iniparser_getstring(gpsctlConf, key, NULL);
+    if (text == NULL) return notfound;                               // not in the configuration: the default
+
+    char *end;
+    double value = strtod(text, &end);
+    if ((end == text) || (*end != 0) || !isfinite(value)) {
+        fprintf(stderr, "Warning: %s = \"%s\" is not a number; using the default (%g)\n", key, text, notfound);
+        return notfound;
+    }
+    return value;
 }
 
 
@@ -837,7 +905,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
-    dnmeaver = iniparser_getdouble(gpsctlConf, "nmea:version", 41) + 0.005;
+    dnmeaver = getConfigDouble("nmea:version", 41) + 0.005;
     if (dnmeaver < 20.0) {
         dnmeaver = dnmeaver * 10.0;
     }
@@ -927,11 +995,11 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     put_uint16_slBuffer(b,  0, 0x05F7);  // configure all settings (including DGPS/DGNSS)...
     put_uint8_slBuffer(b,  2, getConfigInt("navigation engine:dynamic model", Stationary, 0, 255));                  // use stationary mode...
     put_uint8_slBuffer(b,  3, getConfigInt("navigation engine:fix mode", Only3D, 0, 255));                         // use any mode...
-    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:fixed altitude (2d)", 0), 100.0));// fixed altitude for 2D (not used)...
-    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:fixed altitude variance (2d)", 0), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
+    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude (2d)", 0), 100.0));// fixed altitude for 2D (not used)...
+    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude variance (2d)", 0), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
     put_uint8_slBuffer(b, 12, getConfigInt("navigation engine:minimum elevation", 20, -128, 127));                       // minimum elevation is 5 degrees...
-    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:position dop mask", 10), 10.0));   // position DoP mask is 10.0...
-    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:time dop mask", 10), 10.0));       // time DoP mask is 10.0...
+    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(getConfigDouble("navigation engine:position dop mask", 10), 10.0));   // position DoP mask is 10.0...
+    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(getConfigDouble("navigation engine:time dop mask", 10), 10.0));       // time DoP mask is 10.0...
     put_uint16_slBuffer(b, 18, getConfigInt("navigation engine:position accuracy mask", 40, 0, 65535));               // position accuracy mask is 100 meters...
     put_uint16_slBuffer(b, 20, getConfigInt("navigation engine:time accuracy mask", 40, 0, 65535));                   // time accuracy mask is 300 m...
     put_uint8_slBuffer(b, 22, getConfigInt("navigation engine:static hold threshold", 0, 0, 255));                   // static hold threshold is 0 cm/s...
@@ -1563,6 +1631,12 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
     slReturn frResp = flushRx(fdPort);
     if (isErrorReturn(frResp))
         return makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
+
+    // pollUbx() allows for output queued ahead of the reply (see lineBacklogMs()), so a poll can take that much longer
+    // than MON_VER_SYNC_MAX_MS; make sure the overall limit allows for at least two of them...
+    long long pollMs = MON_VER_SYNC_MAX_MS + lineBacklogMs(fdPort);
+    if (pollMs > INT_MAX / 2) pollMs = INT_MAX / 2;
+    if (maxTimeMs < 2 * pollMs) maxTimeMs = (int) (2 * pollMs);
 
     // read characters until either we appear to be synchronized or we run out of time...
     while (currentTimeMs() < start + maxTimeMs) {
