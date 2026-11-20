@@ -233,6 +233,7 @@ slReturn ubxConfigTimePulse( int fdPort, int verbosity );
 slReturn ubxConfigNavEngine( int fdPort, int verbosity );
 slReturn ubxConfigForTiming( int fdPort, int verbosity );
 slReturn ubxGetConfig( int fdPort, int verbosity, ubxConfig* config );
+slReturn ubxGetUartBaudRate( int fdPort, unsigned int* baudRate );
 slReturn ubxChangeBaudRate( int fdPort, unsigned int newBaudRate, int verbosity );
 slReturn ubxSetNMEAData( int fdPort, int verbosity, bool nmeaOn );
 slReturn isNMEAmsgEnabled( int fdPort, int verbosity, nmeaMSG messageID );

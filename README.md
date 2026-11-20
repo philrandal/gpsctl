@@ -83,6 +83,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
             -q, --quiet               quiet mode  
             -p, --port                port to use (default is /dev/serial0) - overrides gpsctl.conf value  
             -j, --json                output in JSON format  
+            --shared_port             use the serial port even if another process (e.g. gpsd) has it open  
             -a, --autobaud            autodetect baud rate of the u-blox module  
                                         (tries 921600, 460800, 230400, 115200, 57600, 38400, 19200, 9600)  
             -b, --baud                use specified baud rate

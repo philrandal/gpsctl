@@ -1679,6 +1679,13 @@ static slReturn pollUartBaudRate(int fdPort, unsigned int* baudRate) {
 }
 
 
+// Asks the receiver which baud rate it reports for its UART (see pollUartBaudRate).  Used to confirm an autobaud
+// result: if something else is answering on the port, the rate we found may not be the receiver's.
+slReturn ubxGetUartBaudRate(int fdPort, unsigned int* baudRate) {
+    return pollUartBaudRate(fdPort, baudRate);
+}
+
+
 // Sends the receiver its UART configuration with the new baud rate, then moves the host to that rate.  The ACK is
 // only swallowed, never trusted: the receiver sends it at the old rate, so switching the host first can lose it,
 // and the ACK for an earlier CFG-PRT poll names the same message type, so it cannot be told apart from this one.
