@@ -91,6 +91,7 @@ struct clientData_slOptions {
     int fdPort;
     bool ubxSynchronized;
     bool nmeaApplied;
+    bool sharedPort;
 };
 
 dictionary *gpsctlConf;
@@ -990,6 +991,29 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     cd->baud = getReturnInfoInt32(abResp);
     freeReturn(abResp);
 
+    // cross-check a UBX result: the receiver itself must report the rate we found.  Anything else answering on
+    // the port (and re-setting its speed) can make autobaud settle on a rate the receiver isn't using...
+    if (cd->syncMethod == syncUBX) {
+        unsigned int reported = 0;
+        slReturn gbResp = ubxGetUartBaudRate(cd->fdPort, &reported);
+        if (isErrorReturn(gbResp)) {
+            if (V1) printf("Warning: could not confirm the detected baud rate with the receiver.\n");
+            if (V2) printReturn(gbResp, true, false);
+            freeReturn(gbResp);
+        }
+        else {
+            freeReturn(gbResp);
+            if (reported != (unsigned int) cd->baud) {
+                close(cd->fdPort);
+                cd->fdPort = -1;
+                return makeErrorFmtMsgReturn(ERR_ROOT,
+                        "autobaud found %d baud but the receiver reports %u: something else may be using the port",
+                        cd->baud, reported);
+            }
+            if (V1) printf("Confirmed: the receiver reports %d baud.\n", cd->baud);
+        }
+    }
+
     // autoBaudRate() has already synchronized using the selected method; if that was UBX, remember
     // it so that the NMEA setup below does not synchronize a second time...
     if (cd->syncMethod == syncUBX)
@@ -1297,6 +1321,15 @@ static slReturn openSerialPort(const psloConfig* config) {
 
     clientData_slOptions* cd = config->clientData;
 
+    // another process using the port (gpsd, say) answers our polls and changes the port's speed, so what we see
+    // can't be trusted; refuse unless told otherwise...
+    if (!cd->sharedPort) {
+        slReturn shResp = checkSerialPortNotShared(cd->port);
+        if (isErrorReturn(shResp))
+            return shResp;
+        freeReturn(shResp);
+    }
+
     int fdPort = open(cd->port, O_RDWR | O_NOCTTY | O_NONBLOCK);
     if (fdPort < 0)
         return makeErrorFmtMsgReturn(ERR_ROOT, "can't open \"%s\": %s", cd->port, strerror(errno));
@@ -1502,6 +1535,16 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
     };
 
 
+    optionDef_slOptions sharedPortDef = {
+            1, "shared_port", 0, argNone,                                       // max, long, short, arg
+            parseFlag, (void*) &clientData->sharedPort, 1,                      // parser, ptrArg, intArg
+            NULL,                                                               // constrainer
+            NULL,                                                               // action
+            NULL,                                                               // argument name
+            "allow use of a serial port that another process has open"
+    };
+
+
     optionDef_slOptions baudDef = {
             1, "baud", 'b', argRequired,                                        // max, long, short, arg
             parseBaud, (void*) &clientData->baud, 0,                            // parser, ptrArg, intArg
@@ -1620,6 +1663,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             quietDef,
             portDef,
             jsonDef,
+            sharedPortDef,
             autobaudDef,
             baudDef,
             minBaudDef,

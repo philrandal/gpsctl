@@ -20,6 +20,8 @@
 #include <termios.h>
 #include <poll.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <dirent.h>
 #include <errno.h>
 #include "sl_general.h"
 #include "sl_serial.h"
@@ -447,4 +449,70 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         }
     }
     return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 921600 to %d", minBaud );
+}
+
+
+// Checks that no other process has the given serial device open, which would make the receiver's replies and the
+// port's baud rate unreliable (for example, gpsd answers our polls and resets the port's speed, which can make
+// autobaud report a rate the receiver is not using).  Returns an error naming the processes if any are found.  Only
+// processes whose descriptors we are allowed to read are seen (all of them when running as root).
+slReturn checkSerialPortNotShared( const char *deviceName ) {
+
+    struct stat devStat;
+    if (stat(deviceName, &devStat) != 0 || !S_ISCHR(devStat.st_mode))
+        return makeOkReturn();  // not something we can identify, so let open() report any problem
+
+    DIR* proc = opendir("/proc");
+    if (proc == NULL)
+        return makeOkReturn();  // no /proc, so no way to check
+
+    pid_t self = getpid();
+    char users[256] = "";
+    int count = 0;
+
+    struct dirent* pe;
+    while ((pe = readdir(proc)) != NULL) {
+        char* end;
+        long pid = strtol(pe->d_name, &end, 10);
+        if (*end != 0 || pid <= 0 || pid == (long) self) continue;
+
+        char fdDirName[64];
+        snprintf(fdDirName, sizeof(fdDirName), "/proc/%ld/fd", pid);
+        DIR* fdDir = opendir(fdDirName);
+        if (fdDir == NULL) continue;
+
+        bool found = false;
+        struct dirent* fe;
+        while (!found && (fe = readdir(fdDir)) != NULL) {
+            if (fe->d_name[0] == '.') continue;
+            char fdName[320];
+            snprintf(fdName, sizeof(fdName), "%s/%s", fdDirName, fe->d_name);
+            struct stat fdStat;
+            if (stat(fdName, &fdStat) == 0 && S_ISCHR(fdStat.st_mode) && fdStat.st_rdev == devStat.st_rdev)
+                found = true;
+        }
+        closedir(fdDir);
+        if (!found) continue;
+
+        // get the process's name, if we can...
+        char commName[64], comm[64] = "?";
+        snprintf(commName, sizeof(commName), "/proc/%ld/comm", pid);
+        FILE* cf = fopen(commName, "r");
+        if (cf != NULL) {
+            if (fgets(comm, sizeof(comm), cf) != NULL) comm[strcspn(comm, "\n")] = 0;
+            fclose(cf);
+        }
+
+        count++;
+        size_t used = strlen(users);
+        if (used < sizeof(users) - 1)
+            snprintf(users + used, sizeof(users) - used, "%s%s (pid %ld)", count > 1 ? ", " : "", comm, pid);
+    }
+    closedir(proc);
+
+    if (count == 0)
+        return makeOkReturn();
+
+    return makeErrorFmtMsgReturn(ERR_ROOT,
+            "\"%s\" is already open in another process: %s (use --shared_port to override)", deviceName, users);
 }

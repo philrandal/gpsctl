@@ -22,6 +22,7 @@ slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbosity );
 slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer synchronizer, int verbosity );
 slReturn getSpeedInfo( int fdPort, speedInfo* );
 slReturn verifySerialDevice( const char *deviceName );
+slReturn checkSerialPortNotShared( const char *deviceName );
 slReturn readSerialChar( int fdPort, long long msTimeout );
 slReturn writeSerialData( int fdPort, const void* data, size_t length );
 bool portHungUp( int fdPort );
