@@ -8,6 +8,7 @@
 #define _DARWIN_C_SOURCE
 #define _POSIX_C_SOURCE 199309L
 
+#include <limits.h>
 #include "ublox.h"
 
 // for best time pulse:
@@ -44,6 +45,7 @@
 #define CFG_NAV5_MAX_MS     2000
 #define MON_VER_MAX_MS      2000
 #define MON_VER_SYNC_MAX_MS 1200
+#define UBX_SYNC_BACKLOG_CHARS 1024  // allowance for queued output ahead of the reply, in characters at the line rate
 #define CFG_GNSS_MAX_MS     1000
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
@@ -1595,6 +1597,20 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
     if (isErrorReturn(frResp))
         return makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
 
+    // At the slow rates the receiver's reply can sit behind whatever NMEA it has already queued (a second of output
+    // is as much as the line carries at 9600 baud), and the reply itself takes a while to arrive, so a fixed wait
+    // is too short there: add the time to receive UBX_SYNC_BACKLOG_CHARS characters at the current rate, and make
+    // sure the overall limit allows for at least two polls...
+    long long pollMs = MON_VER_SYNC_MAX_MS;
+    speedInfo si;
+    slReturn gsiResp = getSpeedInfo(fdPort, &si);
+    if (isOkReturn(gsiResp)) {
+        pollMs += (long long) si.nsChar * UBX_SYNC_BACKLOG_CHARS / 1000000;
+        if (pollMs > INT_MAX / 2) pollMs = INT_MAX / 2;
+        if (maxTimeMs < 2 * pollMs) maxTimeMs = (int) (2 * pollMs);
+    }
+    freeReturn(gsiResp);
+
     // read characters until either we appear to be synchronized or we run out of time...
     while (currentTimeMs() < start + maxTimeMs) {
 
@@ -1603,7 +1619,7 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
         slBuffer *body = create_slBuffer(0, LittleEndian);
         ubxMsg msg = createUbxMsg(type, body);
         ubxMsg ans;
-        slReturn result = pollUbx(fdPort, msg, MON_VER_SYNC_MAX_MS, &ans);
+        slReturn result = pollUbx(fdPort, msg, (int) pollMs, &ans);
         if (isOkReturn(result)) {
             free(ans.body);
             return makeOkInfoReturn(bool2info(true));
