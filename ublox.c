@@ -45,7 +45,7 @@
 #define CFG_NAV5_MAX_MS     2000
 #define MON_VER_MAX_MS      2000
 #define MON_VER_SYNC_MAX_MS 1200
-#define UBX_SYNC_BACKLOG_CHARS 1024  // allowance for queued output ahead of the reply, in characters at the line rate
+#define UBX_SYNC_BACKLOG_CHARS 1024  // allowance for queued output ahead of a reply, in characters at the line rate
 #define CFG_GNSS_MAX_MS     1000
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
@@ -319,6 +319,20 @@ static slReturn rcvUbxMsg(int fdPort, ubxMsg* msg, int max_ms) {
 }
 
 
+// Extra time to allow, on top of a fixed wait for a reply, for output the receiver has already queued ahead of it: the
+// time to receive UBX_SYNC_BACKLOG_CHARS characters at the port's current rate.  Negligible at 115200 baud and above
+// (under 90 ms), but about a second at 9600 baud, where the line carries only 960 characters a second and a reply can
+// sit behind a second's worth of NMEA.  Returns 0 if the rate can't be read.
+static long long lineBacklogMs(int fdPort) {
+
+    speedInfo si;
+    slReturn gsiResp = getSpeedInfo(fdPort, &si);
+    long long ms = isOkReturn(gsiResp) ? (long long) si.nsChar * UBX_SYNC_BACKLOG_CHARS / 1000000 : 0;
+    freeReturn(gsiResp);
+    return ms;
+}
+
+
 // Waits for the ACK/NAK that refers to the given message type, for at most max_ms milliseconds.  An ACK or NAK for
 // some other message (one left over from an earlier command, or from a poll) is not ours to interpret and is
 // ignored, so that a stale ACK can never be mistaken for the answer to the command we just sent.  Anything else is
@@ -413,7 +427,7 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
 static slReturn sendUbxAckedMsg(int fdPort, ubxMsg msg) {
     slReturn result = sendUbxMsg(fdPort, msg);
     if (isErrorReturn(result)) return result;
-    return ubxAckWait(fdPort, msg.type, ACK_WAIT_MS);
+    return ubxAckWait(fdPort, msg.type, (int) (ACK_WAIT_MS + lineBacklogMs(fdPort)));  // (queued output can delay the ACK at slow rates)
 }
 
 
@@ -444,6 +458,7 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     // may also still have an ACK-ACK, or a reply to an earlier poll, queued up or in flight.  So keep reading
     // until we see the response we actually asked for, noting any ACK-ACK along the way...
     long long startTime = currentTimeMs();
+    max_ms += (int) lineBacklogMs(fdPort);  // (queued output can delay the reply at slow rates)
     bool gotAck = false;
     ubxType unexpectedType = {0, 0};
     bool sawUnexpected = false;
@@ -1597,19 +1612,11 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
     if (isErrorReturn(frResp))
         return makeErrorMsgReturn(ERR_CAUSE(frResp), "could not flush receiver prior to synchronization");
 
-    // At the slow rates the receiver's reply can sit behind whatever NMEA it has already queued (a second of output
-    // is as much as the line carries at 9600 baud), and the reply itself takes a while to arrive, so a fixed wait
-    // is too short there: add the time to receive UBX_SYNC_BACKLOG_CHARS characters at the current rate, and make
-    // sure the overall limit allows for at least two polls...
-    long long pollMs = MON_VER_SYNC_MAX_MS;
-    speedInfo si;
-    slReturn gsiResp = getSpeedInfo(fdPort, &si);
-    if (isOkReturn(gsiResp)) {
-        pollMs += (long long) si.nsChar * UBX_SYNC_BACKLOG_CHARS / 1000000;
-        if (pollMs > INT_MAX / 2) pollMs = INT_MAX / 2;
-        if (maxTimeMs < 2 * pollMs) maxTimeMs = (int) (2 * pollMs);
-    }
-    freeReturn(gsiResp);
+    // pollUbx() allows for output queued ahead of the reply (see lineBacklogMs()), so a poll can take that much longer
+    // than MON_VER_SYNC_MAX_MS; make sure the overall limit allows for at least two of them...
+    long long pollMs = MON_VER_SYNC_MAX_MS + lineBacklogMs(fdPort);
+    if (pollMs > INT_MAX / 2) pollMs = INT_MAX / 2;
+    if (maxTimeMs < 2 * pollMs) maxTimeMs = (int) (2 * pollMs);
 
     // read characters until either we appear to be synchronized or we run out of time...
     while (currentTimeMs() < start + maxTimeMs) {
@@ -1619,7 +1626,7 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
         slBuffer *body = create_slBuffer(0, LittleEndian);
         ubxMsg msg = createUbxMsg(type, body);
         ubxMsg ans;
-        slReturn result = pollUbx(fdPort, msg, (int) pollMs, &ans);
+        slReturn result = pollUbx(fdPort, msg, MON_VER_SYNC_MAX_MS, &ans);
         if (isOkReturn(result)) {
             free(ans.body);
             return makeOkInfoReturn(bool2info(true));
