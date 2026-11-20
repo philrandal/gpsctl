@@ -1,3 +1,11 @@
+2026-11-20 - {hil Randal and Claude - Release 1.39
+    Oversized UBX length: treated as noise instead of waiting for up to 65535 bytes.
+    Synchronizer wait: longer wait in the autobaud sync at slow baud rates.
+    Poll and ACK waits: the same extra allowance for every poll and ACK wait.
+    Config values: strict decimal reading, with the units in the shipped configs moved into comments.
+      NOTE: this breaks existing configs - please adjust your gpsctl.conf to put comment symbols 
+          after numeric values
+
 2026-11-20 - Phil Randal and Claude - Release 1.38
     Refuse a shared serial port and cross-check autobaud
 
