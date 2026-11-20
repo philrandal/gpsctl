@@ -9,6 +9,7 @@
 #define _POSIX_C_SOURCE 199309L
 
 #include <limits.h>
+#include <math.h>
 #include "ublox.h"
 
 // for best time pulse:
@@ -696,6 +697,7 @@ extern int getConfigBool(const char *key, int notfound) {
 // "maximum channels = 300" was sent as 44, and a negative unsigned value became a huge one.  It also reads text that
 // isn't a number as 0 ("abc") or as its numeric prefix ("12abc" is 12), so a typo quietly became a setting.  Text that
 // isn't entirely a number, or a value outside min..max, is reported (on stderr) and the default is used instead.
+// Anything after the number (a unit, say) must be a comment: write "56 ; nanoseconds", not "56 nanoseconds".
 // Numbers are read as iniparser reads them (strtol, base 0: decimal, 0x hex, leading-0 octal), as a long: the int
 // that iniparser_getint() returns wraps a long value, so 2^32 + 10 would have arrived as a perfectly good 10.
 extern int getConfigInt(const char *key, long notfound, long min, long max) {
@@ -713,6 +715,24 @@ extern int getConfigInt(const char *key, long notfound, long min, long max) {
         return (int) notfound;
     }
     return (int) value;
+}
+
+
+// Reads a decimal setting from the configuration, as strictly as getConfigInt() reads an integer.  iniparser_getdouble()
+// uses atof(), which reads "abc" as 0 and "2.5m" as 2.5, so a typo quietly became a setting.  Text that isn't entirely a
+// finite number is reported (on stderr) and the default is used instead.  Units or other remarks belong in a comment
+// (after ';' or '#').
+extern double getConfigDouble(const char *key, double notfound) {
+    const char *text = iniparser_getstring(gpsctlConf, key, NULL);
+    if (text == NULL) return notfound;                               // not in the configuration: the default
+
+    char *end;
+    double value = strtod(text, &end);
+    if ((end == text) || (*end != 0) || !isfinite(value)) {
+        fprintf(stderr, "Warning: %s = \"%s\" is not a number; using the default (%g)\n", key, text, notfound);
+        return notfound;
+    }
+    return value;
 }
 
 
@@ -886,7 +906,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
-    dnmeaver = iniparser_getdouble(gpsctlConf, "nmea:version", 41) + 0.005;
+    dnmeaver = getConfigDouble("nmea:version", 41) + 0.005;
     if (dnmeaver < 20.0) {
         dnmeaver = dnmeaver * 10.0;
     }
@@ -976,11 +996,11 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     put_uint16_slBuffer(b,  0, 0x05F7);  // configure all settings (including DGPS/DGNSS)...
     put_uint8_slBuffer(b,  2, getConfigInt("navigation engine:dynamic model", Stationary, 0, 255));                  // use stationary mode...
     put_uint8_slBuffer(b,  3, getConfigInt("navigation engine:fix mode", Only3D, 0, 255));                         // use any mode...
-    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:fixed altitude (2d)", 0), 100.0));// fixed altitude for 2D (not used)...
-    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:fixed altitude variance (2d)", 0), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
+    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude (2d)", 0), 100.0));// fixed altitude for 2D (not used)...
+    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude variance (2d)", 0), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
     put_uint8_slBuffer(b, 12, getConfigInt("navigation engine:minimum elevation", 20, -128, 127));                       // minimum elevation is 5 degrees...
-    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:position dop mask", 10), 10.0));   // position DoP mask is 10.0...
-    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(iniparser_getdouble(gpsctlConf, "navigation engine:time dop mask", 10), 10.0));       // time DoP mask is 10.0...
+    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(getConfigDouble("navigation engine:position dop mask", 10), 10.0));   // position DoP mask is 10.0...
+    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(getConfigDouble("navigation engine:time dop mask", 10), 10.0));       // time DoP mask is 10.0...
     put_uint16_slBuffer(b, 18, getConfigInt("navigation engine:position accuracy mask", 40, 0, 65535));               // position accuracy mask is 100 meters...
     put_uint16_slBuffer(b, 20, getConfigInt("navigation engine:time accuracy mask", 40, 0, 65535));                   // time accuracy mask is 300 m...
     put_uint8_slBuffer(b, 22, getConfigInt("navigation engine:static hold threshold", 0, 0, 255));                   // static hold threshold is 0 cm/s...

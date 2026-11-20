@@ -65,27 +65,27 @@ maximum channels=14
 Dynamic model =                0
 # Fix mode: 2D only = 1, 3D only = 2, auto 2D/3D = 3
 Fix mode =                     3
-Fixed altitude (2D) =          0.00 meters
-Fixed altitude variance (2D) = 1.0000 meters^2
-Minimum elevation =            5 degrees
+Fixed altitude (2D) =          0.00 ; meters
+Fixed altitude variance (2D) = 1.0000 ; meters^2
+Minimum elevation =            5 ; degrees
 Position DoP mask =            25.0
 Time DoP mask =                25.0
-Position accuracy mask =       100 meters
-Time accuracy mask =           100 meters
-Static hold threshold =        0 cm/s
-Dynamic GNSS timeout =         60 seconds
-Threshold above C/No =         0 satellites
-C/No threshold =               0 dBHz
-Static hold max distance =     0 meters
+Position accuracy mask =       100 ; meters
+Time accuracy mask =           100 ; meters
+Static hold threshold =        0 ; cm/s
+Dynamic GNSS timeout =         60 ; seconds
+Threshold above C/No =         0 ; satellites
+C/No threshold =               0 ; dBHz
+Static hold max distance =     0 ; meters
 # UTC Standard: AutoUTC = 0, USNO_UTC = 3, GLONASS_UTC = 6, BeiDou_UTC = 7
 UTC standard =                 0
 
 [Time Pulse]
 # the nanoseconds / microseconds after the numbers are just reminders, they don't mean anything to the config parser
-Antenna cable delay = 50 nanoseconds
-RF group delay = 0 ns
-Unlocked pulse period = 1000000 microseconds
+Antenna cable delay = 50 ; nanoseconds
+RF group delay = 0 ; ns
+Unlocked pulse period = 1000000 ; microseconds
 Unlocked pulse length = 0
-Locked pulse period = 1000000 microseconds
-Locked pulse length = 100000 microseconds
+Locked pulse period = 1000000 ; microseconds
+Locked pulse length = 100000 ; microseconds
 User configurable delay = 0
