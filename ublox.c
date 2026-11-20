@@ -177,6 +177,30 @@ static void queueReplay(ubxReplay *replay, const byte *hdr, slBuffer *body, cons
 }
 
 
+// Queues the four header bytes (class, id, length) that followed a B5 62 pair we've decided wasn't a frame start, for
+// another look ahead of anything still unread on the port.  Anything not yet consumed from an earlier replay is kept,
+// after the new bytes.
+static void queueReplayHeader(ubxReplay *replay, const byte *hdr) {
+
+    size_t leftover = replay->len - replay->pos;
+    byte *data = safeMalloc(4 + leftover);
+
+    memcpy(data, hdr, 4);
+    if (leftover > 0) memcpy(data + 4, replay->data + replay->pos, leftover);
+
+    free(replay->data);
+    replay->data = data;
+    replay->len  = 4 + leftover;
+    replay->pos  = 0;
+}
+
+
+// The longest message body we'll believe.  The biggest the receiver sends us (NAV-SAT with every channel, CFG-GNSS,
+// MON-VER with its extensions) is well under 4 KB, so a longer length means the B5 62 before it was noise, and waiting
+// for that many bytes could swallow a genuine reply that arrives meanwhile.
+#define UBX_MAX_BODY 4096
+
+
 // Waits up to max_ms for a UBX message to be received.  The body (an slBuffer) is only allocated if returns Ok.
 #define UBX_SYNC1 (0xB5)
 #define UBX_SYNC2 (0x62)
@@ -231,6 +255,13 @@ static slReturn rcvUbxMsgReplay(int fdPort, ubxMsg* msg, int max_ms, ubxReplay *
         ubxType type = {hdr[0], hdr[1]};
         msg->type = type;
         size_t length = hdr[2] | (hdr[3] << 8);  // little-endian...
+
+        // a length no real message has means this wasn't a frame start: look through the header bytes again instead
+        // of waiting for up to 64 KB of "body" that would swallow whatever genuine message comes next...
+        if (length > UBX_MAX_BODY) {
+            queueReplayHeader(replay, hdr);
+            continue;
+        }
 
         // now get the body...
         msg->body = create_slBuffer(length, LittleEndian);
