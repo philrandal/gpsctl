@@ -125,6 +125,11 @@ To view the current u-blox config
 
  Without the gpsctl.conf file the program's behaviour will be the same as with version 0.6.
 
+ Numbers must be written as numbers and nothing else: a value that isn't entirely a number, or is outside the range its
+ field allows, is reported on stderr and the default is used.  Anything else on the line (units, remarks) goes in a
+ comment, which starts with ';' or '#' and runs to the end of the line, e.g. `Antenna cable delay = 56 ; nanoseconds`.
+ (A value can therefore not contain ';' or '#'.)
+
  Note: Either BeiDou or Glonass can be configured, but not both at the same time as GPS or Galileo.  If neither GPS nor Galileo are enabled, you can enable both BeiDou and Glonass.  If you try with GPS or Galileo enabled, the [gpsctl] option "prefer beidou to glonass if both enabled" (default: no) will override one of them.
 
 
