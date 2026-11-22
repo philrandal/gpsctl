@@ -79,51 +79,51 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
 
 ## Usage
 
-  Options for gpsctl:
+    Options for gpsctl:
 
-   -V, --version               display the version of this program
-   -U, --usage                 display a short description of this program's usage
-   -?, --help                  display this help message
-   -v, --verbose               get verbose messages (may repeat up to 2 times)
-   -q, --quiet                 suppress normal output
-   -p, --port <device>         specify the port device (default is '/dev/serial0')
-   -j, --json                  select JSON query output (may repeat up to 3 times)
-       --shared_port           allow use of a serial port that another process has open
-   -a, --autobaud[=method]     infer baud rate using ascii, nmea, ubx data (default is ubx)
-   -b, --baud <baud rate>      specify different host baud rate; any standard rate is allowed
-   -M, --minbaud <baud rate>   specify minimum baud rate for autobaud (default is '9600'); any standard rate is allowed
-   -s, --sync[=method]         synchronize using ascii, nmea, ubx data (default is ubx)
-   -B, --newbaud <baud rate>   change the U-Blox and host baud rates to the specified standard rate
-   -n, --nmea <yes/no>         configure whether the GPS sends NMEA data to the serial port (see "Yes or no values" below)
-   -Q, --query <query type>    query the GPS for info (see "Query types" below)
-       --galileo               configure the GPS for Galileo Satellites
-       --satellites            configure the GPS Satellites only
-       --configure_for_timing  configure the GPS for maximum timing precision
-       --save_config           save the GPS configuration to battery-backed RAM
-       --reset                 reset the GPS
-   -e, --echo[=seconds]        echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)
+    -V, --version               display the version of this program
+    -U, --usage                 display a short description of this program's usage
+    -?, --help                  display this help message
+    -v, --verbose               get verbose messages (may repeat up to 2 times)
+    -q, --quiet                 suppress normal output
+    -p, --port <device>         specify the port device (default is '/dev/serial0')
+    -j, --json                  select JSON query output (may repeat up to 3 times)
+        --shared_port           allow use of a serial port that another process has open
+    -a, --autobaud[=method]     infer baud rate using ascii, nmea, ubx data (default is ubx)
+    -b, --baud <baud rate>      specify different host baud rate; any standard rate is allowed
+    -M, --minbaud <baud rate>   specify minimum baud rate for autobaud (default is '9600'); any standard rate is allowed
+    -s, --sync[=method]         synchronize using ascii, nmea, ubx data (default is ubx)
+    -B, --newbaud <baud rate>   change the U-Blox and host baud rates to the specified standard rate
+    -n, --nmea <yes/no>         configure whether the GPS sends NMEA data to the serial port (see "Yes or no values" below)
+    -Q, --query <query type>    query the GPS for info (see "Query types" below)
+        --galileo               configure the GPS for Galileo Satellites
+        --satellites            configure the GPS Satellites only
+        --configure_for_timing  configure the GPS for maximum timing precision
+        --save_config           save the GPS configuration to battery-backed RAM
+        --reset                 reset the GPS
+    -e, --echo[=seconds]        echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)
 
-   Arguments in <angle brackets> are required; they MUST be supplied.
-   Arguments in [square brackets] are optional; they may be omitted.
+    Arguments in <angle brackets> are required; they MUST be supplied.
+    Arguments in [square brackets] are optional; they may be omitted.
 
- Additional information:
+  Additional information:
 
-   Query types:
-     fix         returns position, altitude, and time information
-     version     returns hardware and software version of the GPS
-     config      returns GPS configuration information
-     satellites  returns currently visible satellite information from the GPS
+    Query types:
+      fix         returns position, altitude, and time information
+      version     returns hardware and software version of the GPS
+      config      returns GPS configuration information
+      satellites  returns currently visible satellite information from the GPS
 
-   Yes or no values:
-     yes         indicated by an initial character of 'y', 'Y', 't', 'T', or '1', or by 'on'
-     no          indicated by anything else
+    Yes or no values:
+      yes         indicated by an initial character of 'y', 'Y', 't', 'T', or '1', or by 'on'
+      no          indicated by anything else
 
- Examples:
-    gpsctl --port=/dev/serial1 --baud 9600 --echo=5
-       Selects the serial port "/dev/serial1", sets the host serial port baud rate to 9600, and
-       echoes any received characters (presumably NMEA data) to stdout.
-    gpsctl -p /dev/serial1 -b 9600 -e=5
-       Exactly the same as the preceding example, using short options.
+  Examples:
+     gpsctl --port=/dev/serial1 --baud 9600 --echo=5
+        Selects the serial port "/dev/serial1", sets the host serial port baud rate to 9600, and
+        echoes any received characters (presumably NMEA data) to stdout.
+     gpsctl -p /dev/serial1 -b 9600 -e=5
+        Exactly the same as the preceding example, using short options.
 
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing
