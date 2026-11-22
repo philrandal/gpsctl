@@ -514,7 +514,7 @@ static slReturn pollUbx(int fdPort, ubxMsg pollMsg, int max_ms, ubxMsg* answer) 
     // mistaken for the ACK of a set command; if it doesn't, so be it...
     if ((pollMsg.type.class == UBX_CFG) && !gotAck) {
         ubxMsg ackMsg;
-        slReturn ackResp = rcvUbxMsg(fdPort, &ackMsg, POLL_ACK_DRAIN_MS);
+        slReturn ackResp = rcvUbxMsg(fdPort, &ackMsg, POLL_ACK_DRAIN_MS + (int) lineBacklogMs(fdPort));
         if (isOkReturn(ackResp)) free(ackMsg.body);
         freeReturn(ackResp);
     }
