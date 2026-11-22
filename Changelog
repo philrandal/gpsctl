@@ -1,3 +1,9 @@
+Unreleased - Phil Randal and Claude
+    GNSS change: UBX-CFG-GNSS is sent only if it changes something (each one makes the receiver restart its GNSS engine).
+    After a CFG-GNSS, wait 0.5 s before the next command, as u-blox requires.
+    If Galileo is enabled, the GNSS change is followed by what u-blox requires: save the configuration (CFG-CFG, 0x041B, so
+      that the reset does not discard it), a hardware reset (CFG-RST, hot start), then wait for the receiver to answer again.
+
 2026-11-20 - {hil Randal and Claude - Release 1.39
     Oversized UBX length: treated as noise instead of waiting for up to 65535 bytes.
     Synchronizer wait: longer wait in the autobaud sync at slow baud rates.

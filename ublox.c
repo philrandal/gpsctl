@@ -48,6 +48,9 @@
 #define MON_VER_SYNC_MAX_MS 1200
 #define UBX_SYNC_BACKLOG_CHARS 1024  // allowance for queued output ahead of a reply, in characters at the line rate
 #define CFG_GNSS_MAX_MS     1000
+#define GNSS_SETTLE_MS      500   // u-blox: after the ACK of a UBX-CFG-GNSS, wait this long before the next command
+#define GNSS_RESTART_WAIT_MS 500  // after asking for a restart, leave the receiver this long to go down before polling it
+#define GNSS_RESTART_MAX_MS 10000 // ...and up to this long, in all, for it to answer again
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
 #define CFG_NMEA_MAX_MS     1000
@@ -742,6 +745,52 @@ static int getConfigChannels(const char *key, int notfound) {
 
 
 // Configure satellites
+// Sleep for a number of milliseconds.
+static void sleepMs(int ms) {
+    struct timespec ts = { ms / 1000, (long) (ms % 1000) * 1000000L };
+    while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
+        ;
+}
+
+// u-blox M8 (SPG 3.01, SPG 3.51, EXT CORE 3.01): "If Galileo is enabled, UBX-CFG-GNSS must be followed by UBX-CFG-RST
+// with resetMode set to Hardware reset."  A hardware reset reloads the saved configuration and discards the current
+// one, so the new GNSS configuration (and everything else we have changed so far) is saved first.  We ask for the
+// reset that follows a controlled shutdown (resetMode 0x04) and keep the ephemeris (navBbrMask 0, a hot start).
+// After that, wait for the receiver to come back and answer.
+static slReturn ubxRestartAfterGnssChange(int fdPort, int verbosity) {
+
+    if (verbosity >= 1)
+        printf("Saving the GPS configuration and restarting the GPS, as u-blox requires after changing GNSS with Galileo enabled...\n");
+    slReturn saveResp = ubxSaveConfig(fdPort, verbosity);
+    if (isErrorReturn(saveResp))
+        return makeErrorMsgReturn(ERR_CAUSE(saveResp), "problem saving the GPS configuration before restarting the GPS");
+    freeReturn(saveResp);
+
+    slBuffer* body = create_slBuffer(4, LittleEndian);
+    put_uint16_slBuffer(body, 0, 0x0000);  // navBbrMask: hot start (nothing cleared)
+    put_uint8_slBuffer(body, 2, 0x04);     // resetMode:  hardware reset (watchdog) after a controlled shutdown
+    put_uint8_slBuffer(body, 3, 0);        // reserved
+    ubxType type = { UBX_CFG, UBX_CFG_RST };
+    ubxMsg msg = createUbxMsg(type, body);
+    slReturn sendResp = sendUbxMsg(fdPort, msg);  // (never acknowledged)
+    free(body);
+    if (isErrorReturn(sendResp))
+        return makeErrorMsgReturn(ERR_CAUSE(sendResp), "problem restarting the GPS");
+    freeReturn(sendResp);
+
+    // let it go down before we start asking whether it is there...
+    sleepMs(GNSS_RESTART_WAIT_MS);
+    slReturn syncResp = ubxSynchronizer(fdPort, GNSS_RESTART_MAX_MS, verbosity);
+    if (isErrorReturn(syncResp))
+        return makeErrorMsgReturn(ERR_CAUSE(syncResp), "problem waiting for the GPS to restart");
+    bool answered = getReturnInfoBool(syncResp);
+    freeReturn(syncResp);
+    if (!answered)
+        return makeErrorMsgReturn(ERR_ROOT, "the GPS did not answer after it was restarted");
+    if (verbosity >= 2) printf("GPS restarted...\n");
+    return makeOkReturn();
+}
+
 extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
 
     // configure the GNSS for GPS, GLONASS, BeiDou, and Galileo, with no SBAS.
@@ -780,6 +829,14 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         free(gnssMsg.body);
         return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected CFG-GNSS message body size: %zu bytes", bodySize);
     }
+
+    // keep what the receiver has now, to see whether we change anything...
+    byte* before = malloc(bodySize);
+    if (before == NULL) {
+        free(gnssMsg.body);
+        return makeErrorMsgReturn(ERR_ROOT, "out of memory");
+    }
+    memcpy(before, buffer_slBuffer(b), bodySize);
     uint8_t gnssRecs = get_uint8_slBuffer(b, 3);  // number of configuration blocks...
     size_t maxRecs = (bodySize - 4) / 8;  // (not uint8_t: a long body would wrap this, e.g. 256 blocks to 0)
     if (gnssRecs > maxRecs) gnssRecs = maxRecs;
@@ -894,15 +951,35 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         }
     }
 
-    // now send it back to the GPS...
-    ubxMsg newGnssMsg = createUbxMsg(gnssMsg.type, b);  // this recomputes the checksum...
-    slReturn suamResp = sendUbxAckedMsg(fdPort, newGnssMsg);
-    if (isErrorReturn(suamResp)) {
+    // if nothing changed there is nothing to send: every UBX-CFG-GNSS makes the receiver restart its GNSS engine
+    // ("Resetting GNSS"), whether or not anything changed...
+    bool gnssChanged = memcmp(before, buffer_slBuffer(b), bodySize) != 0;
+    free(before);
+    if (!gnssChanged) {
+        if (verbosity >= 2) printf("GNSS configuration is already as requested...\n");
         free(gnssMsg.body);
-        return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending GNSS configuration to GPS");
+    } else {
+
+        // now send it back to the GPS...
+        ubxMsg newGnssMsg = createUbxMsg(gnssMsg.type, b);  // this recomputes the checksum...
+        slReturn suamResp = sendUbxAckedMsg(fdPort, newGnssMsg);
+        if (isErrorReturn(suamResp)) {
+            free(gnssMsg.body);
+            return makeErrorMsgReturn(ERR_CAUSE(suamResp), "problem sending GNSS configuration to GPS");
+        }
+        freeReturn(suamResp);
+        free(gnssMsg.body);
+
+        // u-blox: wait for the ACK and then 0.5 seconds before sending the next command; and if Galileo is enabled,
+        // follow it with a hardware reset...
+        sleepMs(GNSS_SETTLE_MS);
+        if (galileo_enabled) {
+            slReturn restartResp = ubxRestartAfterGnssChange(fdPort, verbosity);
+            if (isErrorReturn(restartResp))
+                return makeErrorMsgReturn(ERR_CAUSE(restartResp), "problem restarting the GPS after changing its GNSS configuration");
+            freeReturn(restartResp);
+        }
     }
-    freeReturn(suamResp);
-    free(gnssMsg.body);
 
     // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
     dnmeaver = getConfigDouble("nmea:version", 41) + 0.005;
