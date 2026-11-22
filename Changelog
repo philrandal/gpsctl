@@ -1,4 +1,6 @@
 Unreleased - Phil Randal and Claude
+    GPSCTL_TRACE=1 in the environment prints every byte sent to and received from the serial port (received bytes grouped
+        32 to a line), with receive-buffer flushes, host baud changes and quiet-line waits, and times, to stderr.
     After the host's baud rate changes (autobaud, -b, --factory_reset), discard input until the line has been quiet for 20 ms
         (at most 1 s) before the first command.  A UART can't find character boundaries while a busy receiver keeps
         sending (the u-blox defaults nearly fill a 9600 baud line), so the reply to a poll sent at once came back with its
