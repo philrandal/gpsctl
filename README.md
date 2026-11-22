@@ -174,7 +174,7 @@ To view the current u-blox config
     prefer beidou to glonass if both enabled = no
 
     [NMEA]
-    # enabled = true / false or non-boolean = don't care, leave it alone
+    # enabled = true / false
     enabled = true
     version = 4.1
     GGA = off
