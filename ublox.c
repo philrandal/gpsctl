@@ -50,7 +50,8 @@
 #define CFG_GNSS_MAX_MS     1000
 #define GNSS_SETTLE_MS      500   // u-blox: after the ACK of a UBX-CFG-GNSS, wait this long before the next command
 #define GNSS_RESTART_WAIT_MS 500  // after asking for a restart, leave the receiver this long to go down before polling it
-#define GNSS_RESTART_MAX_MS 10000 // ...and up to this long, in all, for it to answer again
+#define GNSS_RESTART_MAX_MS 10000
+#define FACTORY_BAUD 9600       // the receiver's default UART rate // ...and up to this long, in all, for it to answer again
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
 #define CFG_NMEA_MAX_MS     1000
@@ -752,19 +753,10 @@ static void sleepMs(int ms) {
         ;
 }
 
-// u-blox M8 (SPG 3.01, SPG 3.51, EXT CORE 3.01): "If Galileo is enabled, UBX-CFG-GNSS must be followed by UBX-CFG-RST
-// with resetMode set to Hardware reset."  A hardware reset reloads the saved configuration and discards the current
-// one, so the new GNSS configuration (and everything else we have changed so far) is saved first.  We ask for the
-// reset that follows a controlled shutdown (resetMode 0x04) and keep the ephemeris (navBbrMask 0, a hot start).
-// After that, wait for the receiver to come back and answer.
-static slReturn ubxRestartAfterGnssChange(int fdPort, int verbosity) {
-
-    if (verbosity >= 1)
-        printf("Saving the GPS configuration and restarting the GPS, as u-blox requires after changing GNSS with Galileo enabled...\n");
-    slReturn saveResp = ubxSaveConfig(fdPort, verbosity);
-    if (isErrorReturn(saveResp))
-        return makeErrorMsgReturn(ERR_CAUSE(saveResp), "problem saving the GPS configuration before restarting the GPS");
-    freeReturn(saveResp);
+// Asks the receiver for a hardware reset after a controlled shutdown (CFG-RST resetMode 0x04) that keeps the ephemeris
+// (navBbrMask 0, a hot start), then waits for it to come back and answer.  A hardware reset reloads the saved
+// configuration and discards the current one.
+static slReturn ubxHardwareRestartAndWait(int fdPort, int verbosity) {
 
     slBuffer* body = create_slBuffer(4, LittleEndian);
     put_uint16_slBuffer(body, 0, 0x0000);  // navBbrMask: hot start (nothing cleared)
@@ -788,6 +780,66 @@ static slReturn ubxRestartAfterGnssChange(int fdPort, int verbosity) {
     if (!answered)
         return makeErrorMsgReturn(ERR_ROOT, "the GPS did not answer after it was restarted");
     if (verbosity >= 2) printf("GPS restarted...\n");
+    return makeOkReturn();
+}
+
+// u-blox M8 (SPG 3.01, SPG 3.51, EXT CORE 3.01): "If Galileo is enabled, UBX-CFG-GNSS must be followed by UBX-CFG-RST
+// with resetMode set to Hardware reset."  A hardware reset reloads the saved configuration and discards the current
+// one, so the new GNSS configuration (and everything else we have changed so far) is saved first.
+static slReturn ubxRestartAfterGnssChange(int fdPort, int verbosity) {
+
+    if (verbosity >= 1)
+        printf("Saving the GPS configuration and restarting the GPS, as u-blox requires after changing GNSS with Galileo enabled...\n");
+    slReturn saveResp = ubxSaveConfig(fdPort, verbosity);
+    if (isErrorReturn(saveResp))
+        return makeErrorMsgReturn(ERR_CAUSE(saveResp), "problem saving the GPS configuration before restarting the GPS");
+    freeReturn(saveResp);
+
+    return ubxHardwareRestartAndWait(fdPort, verbosity);
+}
+
+// Sets the receiver back to its factory defaults: CFG-CFG with every section cleared (clearMask 0xFFFF, which deletes
+// the saved configuration) and loaded (loadMask 0xFFFF, which makes the defaults current), in battery-backed RAM,
+// flash, EEPROM and SPI flash (deviceMask 0x17; devices the receiver doesn't have are ignored).  The defaults put the
+// UART back at 9600 baud, so the host follows it there; the receiver is then restarted (as with any GNSS change, since
+// the defaults include a GNSS configuration) from the now-empty saved configuration.  On success the port is at 9600.
+extern slReturn ubxFactoryReset(int fdPort, int verbosity) {
+
+    if (verbosity >= 1) printf("Restoring the GPS to its factory defaults (its serial port will be at %d baud)...\n", FACTORY_BAUD);
+
+    slBuffer* body = create_slBuffer(13, LittleEndian);
+    put_uint32_slBuffer(body,  0, 0xFFFF);  // clear mask: all sections
+    put_uint32_slBuffer(body,  4, 0x0000);  // save mask: nothing
+    put_uint32_slBuffer(body,  8, 0xFFFF);  // load mask: all sections
+    put_uint8_slBuffer(body, 12, 0x17);     // BBR, flash, EEPROM, SPI flash
+    ubxMsg msg = createUbxMsg(ut_CFG_CFG, body);
+    slReturn sendResp = sendUbxMsg(fdPort, msg);
+    free(body);
+    if (isErrorReturn(sendResp))
+        return makeErrorMsgReturn(ERR_CAUSE(sendResp), "problem sending the factory reset to the GPS");
+    freeReturn(sendResp);
+
+    // The receiver may ACK at the old rate, at the new one, or not at all, so don't depend on it: give it time to apply
+    // the defaults, move the host to their rate (which also throws away anything unread), and see whether it answers...
+    sleepMs(GNSS_RESTART_WAIT_MS);
+    slReturn stoResp = setTermOptionsBaud(fdPort, FACTORY_BAUD);
+    if (isErrorReturn(stoResp))
+        return makeErrorMsgReturn(ERR_CAUSE(stoResp), "problem changing the host baud rate after the factory reset");
+    freeReturn(stoResp);
+
+    slReturn syncResp = ubxSynchronizer(fdPort, GNSS_RESTART_MAX_MS, verbosity);
+    if (isErrorReturn(syncResp))
+        return makeErrorMsgReturn(ERR_CAUSE(syncResp), "problem waiting for the GPS after the factory reset");
+    bool answered = getReturnInfoBool(syncResp);
+    freeReturn(syncResp);
+    if (!answered)
+        return makeErrorMsgReturn(ERR_ROOT, "the GPS did not answer at 9600 baud after the factory reset (try the -a option)");
+    if (verbosity >= 2) printf("GPS answers at %d baud...\n", FACTORY_BAUD);
+
+    slReturn restartResp = ubxHardwareRestartAndWait(fdPort, verbosity);
+    if (isErrorReturn(restartResp))
+        return makeErrorMsgReturn(ERR_CAUSE(restartResp), "problem restarting the GPS after the factory reset");
+    freeReturn(restartResp);
     return makeOkReturn();
 }
 
