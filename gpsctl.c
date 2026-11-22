@@ -1654,7 +1654,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             NULL,                                                               // constrainer
             actionSaveConfig,                                                   // action
             NULL,                                                               // argument name
-            "save the GPS configuration to battery-backed RAM and EEPROM"
+            "save the GPS configuration to battery-backed RAM, flash and EEPROM"
     };
 
     optionDef_slOptions resetDef = {
