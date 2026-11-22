@@ -101,6 +101,8 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
             --save_config             save config to battery-backed RAM  
             -e, --echo                echo NMEA output  
             --reset                   cold-reset u-blox config to defaults  
+            --factory_reset=yes       restore the u-blox factory defaults, erasing its saved config;  
+                                        the u-blox goes back to 9600 baud, and so does gpsctl  
 
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing

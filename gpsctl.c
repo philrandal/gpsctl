@@ -768,6 +768,15 @@ static slReturn parseBool(void* ptrArg, int intArg, const optionDef_slOptions* d
 }
 
 
+// Parse the argument of --factory_reset, which must be the word "yes": the option wipes the GPS's saved configuration,
+// so it has to be asked for in full.
+static slReturn parseFactoryConfirm(void* ptrArg, int intArg, const optionDef_slOptions* def, const char* arg, clientData_slOptions* clientData) {
+    if (arg && strcmp(arg, "yes") == 0)
+        return makeOkReturn();
+    return parseMsgHelper(ERR_ROOT, def, "%s", "the argument must be the word \"yes\", to confirm that the GPS's saved configuration is to be erased");
+}
+
+
 // Parse the given argument, which is presumed to be a string representing an integer, which if parsed without error is
 // stored to the argPtr. If the parsing fails for any reason, return an error.
 static slReturn parseInt(void* ptrArg, int intArg, const optionDef_slOptions* def, const char* arg, clientData_slOptions* clientData) {
@@ -1230,6 +1239,34 @@ static slReturn  actionReset(const optionDef_slOptions* defs, const psloConfig* 
 }
 
 
+// Factory reset action function, which sets the GPS back to its factory defaults (and so back to 9600 baud)...
+static slReturn  actionFactoryReset(const optionDef_slOptions* defs, const psloConfig* config) {
+
+    // make sure we're synchronized...
+    clientData_slOptions* cd = config->clientData;
+    slReturn usResp = syncAndApplyNMEA(cd);
+    if (isErrorReturn(usResp))
+        return usResp;
+    freeReturn(usResp);
+
+    // restore the factory defaults, which leaves the receiver at its default rate...
+    slReturn frResp = ubxFactoryReset(cd->fdPort, cd->verbosity);
+    if (isErrorReturn(frResp)) {
+        // we don't know what state the link is in, so don't carry on as if it were usable...
+        cd->ubxSynchronized = false;
+        cd->nmeaApplied = false;
+        return makeErrorMsgReturn(ERR_CAUSE(frResp), "problem restoring the GPS to its factory defaults");
+    }
+    freeReturn(frResp);
+
+    // the port is now at the receiver's default rate, and nothing we applied before is in effect any more...
+    cd->baud = 9600;
+    cd->ubxSynchronized = true;
+    cd->nmeaApplied = false;
+    return makeOkReturn();
+}
+
+
 // Configure for timing action function, which configures the GPS for maximum timing accuracy...
 static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psloConfig* config) {
 
@@ -1619,6 +1656,15 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             "reset the GPS"
     };
 
+    optionDef_slOptions factoryResetDef = {
+            1, "factory_reset", 0, argRequired,                                 // max, long, short, arg
+            parseFactoryConfirm, NULL, 0,                                       // parser, ptrArg, intArg
+            NULL,                                                               // constrainer
+            actionFactoryReset,                                                 // action
+            "yes",                                                              // argument name
+            "restore the GPS to its factory defaults, erasing its saved configuration; the GPS goes back to 9600 baud"
+    };
+
     /* remove as wiringPi now deprecated
     optionDef_slOptions testPpsDef = {
             1, "test", 0, argNone,                                              // max, long, short, arg
@@ -1671,6 +1717,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
 
             // all the above MUST come before those below, or port won't be initialized correctly...
             syncDef,
+            factoryResetDef,
             newbaudDef,
             nmeaDef,
             queryOptionDef,

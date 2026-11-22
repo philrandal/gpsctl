@@ -3,6 +3,9 @@ Unreleased - Phil Randal and Claude
     After a CFG-GNSS, wait 0.5 s before the next command, as u-blox requires.
     If Galileo is enabled, the GNSS change is followed by what u-blox requires: save the configuration (CFG-CFG, 0x041B, so
       that the reset does not discard it), a hardware reset (CFG-RST, hot start), then wait for the receiver to answer again.
+    New option --factory_reset=yes: restores the receiver's factory defaults (CFG-CFG clearing and loading all sections, so
+      the saved configuration is erased too), follows the receiver back to its default 9600 baud, then restarts it.  The
+      word yes is required, so the option can't be given by accident.
 
 2026-11-20 - {hil Randal and Claude - Release 1.39
     Oversized UBX length: treated as noise instead of waiting for up to 65535 bytes.
