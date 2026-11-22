@@ -135,66 +135,7 @@ To view the current u-blox config
 
  An example which configures for Galileo satellites:
 
-    #
-    # example gpsctl.conf which enables Galileo as in --galileo parameter
-    #
-    [gpsctl]
-    port = /dev/ttyAMA0
-    # sync method: ASCII = 1, NMEA = 2, UBX = 3
-    sync method = 3
-    verbosity = 0
-    prefer beidou to glonass if both enabled = no
-
-    [NMEA]
-    enabled = true
-    version = 4.1
-    GGA = off
-    GLL = off
-    GSA = off
-    GSV = off
-    RMC = on
-    VTG = off
-    GRS = off
-    GST = off
-    ZDA = on
-
-    [GPS]
-    enabled = yes
-    minimum channels=8
-    maximum channels=16
-
-    [SBAS]
-    enabled = no
-    minimum channels=1
-    maximum channels=3
-
-    [Galileo]
-    enabled = yes
-    minimum channels=4
-    maximum channels=8
-
-    [Beidou]
-    enabled = no
-    minimum channels=8
-    maximum channels=16
-
-    [IMES]
-    enabled = no
-    minimum channels=0
-    maximum channels=8
-
-    [QZSS]
-    enabled = no
-    minimum channels=0
-    maximum channels=3
-
-    [GLONASS]
-    enabled = yes
-    minimum channels=8
-    maximum channels=14
-
-    [Navigation Engine]
-    # Dynamic model: Portable = 0, Stationary = 2, Pedestrian = 3, Automotive = 4, Sea = 5, Air1G = 6, Air2G = 7, Air4G = 8, Watch = 9
+    Air4G = 8, Watch = 9
     Dynamic model =                2
     # Fix mode: 2D only = 1, 3D only = 2, auto 2D/3D = 3
     Fix mode =                     2
