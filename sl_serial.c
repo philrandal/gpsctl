@@ -27,6 +27,7 @@
 #include "sl_serial.h"
 #include "sl_bits.h"
 #include "sl_return.h"
+#include <time.h>
 
 
 // Returns speed information for the given port.
@@ -308,6 +309,42 @@ extern slReturn setTermOptionsBaud( int fdPort, int baud ) {
 }
 
 
+// After the host's baud rate changes while the receiver keeps sending, a UART can't find the character boundaries until
+// the line goes idle: everything read up to the next gap is garbage in the same way, and so is the first character
+// after it, which is how a reply to a poll sent at once loses its B5 sync byte.  So discard whatever arrives until the
+// line has been quiet for quietMs, but no longer than maxMs altogether (a receiver that never stops is not waited for).
+extern slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs ) {
+
+    struct timespec ts;
+    clock_gettime( CLOCK_MONOTONIC, &ts );
+    long long start = (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+    byte buffer[256];
+
+    while( true ) {
+        clock_gettime( CLOCK_MONOTONIC, &ts );
+        long long elapsed = (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000 - start;
+        if( elapsed >= maxMs ) return makeOkReturn();
+
+        struct pollfd pfd = { fdPort, POLLIN, 0 };
+        int pr = poll( &pfd, 1, quietMs );
+        if( pr < 0 ) {
+            if( errno == EINTR ) continue;
+            return makeErrorFmtMsgReturn( ERR_ROOT, "error from poll(): %s", strerror(errno) );
+        }
+        if( pr == 0 ) return makeOkReturn();   // nothing for quietMs: the line is quiet
+
+        if( (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) && !(pfd.revents & POLLIN) )
+            return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
+        ssize_t n = read( fdPort, buffer, sizeof buffer );
+        if( n < 0 && errno != EINTR && errno != EAGAIN ) {
+            if( errno == EIO || errno == EPIPE || errno == ENODEV )
+                return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
+            return makeErrorFmtMsgReturn( ERR_ROOT, "error from read(): %s", strerror(errno) );
+        }
+    }
+}
+
+
 // Changes the terminal options on the given serial port to the given baud rate, number of data bits, number of stop
 // bits, parity enable, and parity polarity (true for odd, false for even).  The given arguments are first checked for
 // validity.
@@ -423,6 +460,10 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         slReturn stobResp = setTermOptionsBaud( fdPort, bauds[i] );
         if( isErrorReturn( stobResp ) )
             return makeErrorFmtMsgReturn( ERR_CAUSE( stobResp ), "problem trying to set baud rate to %d", bauds[i] );
+        slReturn wqResp = waitForQuietLine( fdPort, QUIET_LINE_MS, QUIET_LINE_MAX_MS );
+        if( isErrorReturn( wqResp ) )
+            return makeErrorFmtMsgReturn( ERR_CAUSE( wqResp ), "problem waiting for the line to go quiet at %d baud", bauds[i] );
+        freeReturn( wqResp );
 
         // Now that the port is at the rate we are about to try, work out how long to give the synchronizer: 250
         // character times, or 4 seconds, whichever is greater.  This has to be done here, after the rate change,
