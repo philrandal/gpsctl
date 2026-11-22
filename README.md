@@ -43,7 +43,7 @@ and enables NMEA version 4.1 output for Galileo
 based on the GPS' notion of time).
 * Disables NMEA RMC, VTG, GSA, GSV, GLL, GGA messages and enables ZDA (for NTP driver 20 mode 8)
 * Saves the U-Blox GPS configuration to on-module battery-backed memory.
-* Resets the U-Blox GPS.
+* Resets the U-Blox GPS, or restores its factory defaults.
 
 ## Dependencies
 The only dependencies *gpsctl* has (other than the standard C library) is on the JSON library
@@ -101,6 +101,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
         --configure_for_timing  configure the GPS for maximum timing precision
         --save_config           save the GPS configuration to battery-backed RAM
         --reset                 reset the GPS
+        --factory_reset=yes     restore the GPS to its factory defaults, erasing its saved configuration; the GPS goes back to 9600 baud
     -e, --echo[=seconds]        echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)
 
     Arguments in <angle brackets> are required; they MUST be supplied.
