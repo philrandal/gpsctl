@@ -79,7 +79,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
 
 ## Usage
 
-    Options for gpsctl:
+  Options for gpsctl:
 
    -V, --version               display the version of this program
    -U, --usage                 display a short description of this program's usage
