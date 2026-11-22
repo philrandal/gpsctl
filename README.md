@@ -118,7 +118,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
       yes         indicated by an initial character of 'y', 'Y', 't', 'T', or '1', or by 'on'
       no          indicated by anything else
 
-  Examples:
+    Examples:
       gpsctl --port=/dev/serial1 --baud 9600 --echo=5
         Selects the serial port "/dev/serial1", sets the host serial port baud rate to 9600, and
         echoes any received characters (presumably NMEA data) to stdout.
