@@ -106,7 +106,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
     Arguments in <angle brackets> are required; they MUST be supplied.
     Arguments in [square brackets] are optional; they may be omitted.
 
-   Additional information:
+    Additional information:
 
     Query types:
       fix         returns position, altitude, and time information
