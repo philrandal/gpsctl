@@ -135,33 +135,98 @@ To view the current u-blox config
 
  An example which configures for Galileo satellites:
 
-    Air4G = 8, Watch = 9
+    #
+    # example gpsctl.conf which enables Galileo
+    #   C/No threshold reduced to 20 from the original gpsctl's 40
+    #   This gets a fix on 14 satellites in my home testing with an indoor GPS antenna 
+    #
+    [gpsctl]
+    port = /dev/ttyAMA0
+    # sync method: ASCII = 1, NMEA = 2, UBX = 3
+    sync method = 3
+    verbosity = 0
+    # Only one of Beidou and GLONASS can be used at the same time
+    # so rather than error out trying to enable both
+    # choose which one to use
+    prefer beidou to glonass if both enabled = no
+
+    [NMEA]
+    # enabled = true / false or non-boolean = don't care, leave it alone
+    enabled = true
+    version = 4.1
+    GGA = off
+    GLL = off
+    GSA = off
+    GSV = off
+    RMC = on
+    VTG = off
+    GRS = off
+    GST = off
+    ZDA = on
+
+    [GPS]
+    enabled = yes
+    minimum channels=8
+    maximum channels=16
+
+    [SBAS]
+    enabled = no
+    minimum channels=1
+    maximum channels=3
+
+    [Galileo]
+    enabled = yes
+    minimum channels=4
+    maximum channels=8
+
+    [Beidou]
+    enabled = no
+    minimum channels=8
+    maximum channels=16
+
+    [IMES]
+    enabled = no
+    minimum channels=0
+    maximum channels=8
+
+    [QZSS]
+    enabled = no
+    minimum channels=0
+    maximum channels=3
+
+    [GLONASS]
+    enabled = yes
+    minimum channels=8
+    maximum channels=14
+
+    [Navigation Engine]
+    # Dynamic model: Portable = 0, Stationary = 2, Pedestrian = 3, Automotive = 4, Sea = 5, Air1G = 6, Air2G = 7, Air4G = 8, Watch = 9
     Dynamic model =                2
     # Fix mode: 2D only = 1, 3D only = 2, auto 2D/3D = 3
     Fix mode =                     2
-    Fixed altitude (2D) =          0.00 meters
-    Fixed altitude variance (2D) = 0.0000 meters^2
-    Minimum elevation =            20 degrees
+    Fixed altitude (2D) =          0.00 ; meters
+    Fixed altitude variance (2D) = 0.0000 ; meters^2
+    Minimum elevation =            20 ; degrees
     Position DoP mask =            10.0
     Time DoP mask =                10.0
-    Position accuracy mask =       40 meters
-    Time accuracy mask =           40 meters
-    Static hold threshold =        0 cm/s
-    Dynamic GNSS timeout =         60 seconds
-    Threshold above C/No =         8 satellites
-    C/No threshold =               20 dBHz
-    Static hold max distance =     0 meters
+    Position accuracy mask =       40 ; meters
+    Time accuracy mask =           40 ; meters
+    Static hold threshold =        0 ; cm/s
+    Dynamic GNSS timeout =         60 ; seconds
+    Threshold above C/No =         8 ; satellites
+    C/No threshold =               20 ; dBHz
+    Static hold max distance =     0 ; meters
     # UTC Standard: AutoUTC = 0, USNO_UTC = 3, GLONASS_UTC = 6, BeiDou_UTC = 7
     UTC standard =                 3
 
     [Time Pulse]
     # the nanoseconds / microseconds after the numbers are just reminders, they don't mean anything to the config parser
-    Antenna cable delay = 56 nanoseconds
-    RF group delay = 20 ns
-    Unlocked pulse period = 1000000 microseconds
+    Antenna cable delay = 56 ; nanoseconds
+    RF group delay = 20 ; ns
+    Unlocked pulse period = 1000000 ; microseconds
     Unlocked pulse length = 0
-    Locked pulse period = 1000000 microseconds
-    Locked pulse length = 500000 microseconds
+    Locked pulse period = 1000000 ; microseconds
+    Locked pulse length = 500000 ; microseconds
     User configurable delay = 0
 
 ## Why did you fork it, Phil?
