@@ -826,6 +826,10 @@ extern slReturn ubxFactoryReset(int fdPort, int verbosity) {
     if (isErrorReturn(stoResp))
         return makeErrorMsgReturn(ERR_CAUSE(stoResp), "problem changing the host baud rate after the factory reset");
     freeReturn(stoResp);
+    slReturn wqResp = waitForQuietLine(fdPort, QUIET_LINE_MS, QUIET_LINE_MAX_MS);
+    if (isErrorReturn(wqResp))
+        return makeErrorMsgReturn(ERR_CAUSE(wqResp), "problem waiting for the line to go quiet after the factory reset");
+    freeReturn(wqResp);
 
     slReturn syncResp = ubxSynchronizer(fdPort, GNSS_RESTART_MAX_MS, verbosity);
     if (isErrorReturn(syncResp))
