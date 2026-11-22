@@ -106,7 +106,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
     Arguments in <angle brackets> are required; they MUST be supplied.
     Arguments in [square brackets] are optional; they may be omitted.
 
-  Additional information:
+   Additional information:
 
     Query types:
       fix         returns position, altitude, and time information
@@ -119,24 +119,24 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
       no          indicated by anything else
 
   Examples:
-     gpsctl --port=/dev/serial1 --baud 9600 --echo=5
+      gpsctl --port=/dev/serial1 --baud 9600 --echo=5
         Selects the serial port "/dev/serial1", sets the host serial port baud rate to 9600, and
         echoes any received characters (presumably NMEA data) to stdout.
-     gpsctl -p /dev/serial1 -b 9600 -e=5
+      gpsctl -p /dev/serial1 -b 9600 -e=5
         Exactly the same as the preceding example, using short options.
 
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing
 
-    gpsctl -a -B 115200 --configure_for_timing -vv
+     gpsctl -a -B 115200 --configure_for_timing -vv
 
 To autodetect the current baud rate and configure satellites only
 
-    gpsctl -a --satellites
+     gpsctl -a --satellites
 
 To view the current u-blox config
 
-    gpsctl -a -Q config
+     gpsctl -a -Q config
 
  ## New in version 0.7 and later
 
