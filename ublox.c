@@ -831,7 +831,7 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     }
 
     // keep what the receiver has now, to see whether we change anything...
-    byte* before = malloc(bodySize);
+    byte* before = safeMalloc(bodySize);
     if (before == NULL) {
         free(gnssMsg.body);
         return makeErrorMsgReturn(ERR_ROOT, "out of memory");
