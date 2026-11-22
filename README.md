@@ -42,7 +42,7 @@ and enables NMEA version 4.1 output for Galileo
 * Configures the U-Blox GPS for maximum timing pulse accuracy (useful for building a stratum 1 NTP server
 based on the GPS' notion of time).
 * Disables NMEA RMC, VTG, GSA, GSV, GLL, GGA messages and enables ZDA (for NTP driver 20 mode 8)
-* Saves the U-Blox GPS configuration to on-module battery-backed memory.
+* Saves the U-Blox GPS configuration to on-module battery-backed memory and flash memory.
 * Resets the U-Blox GPS, or restores its factory defaults.
 
 ## Dependencies
