@@ -1048,6 +1048,16 @@ static slReturn actionBaud(const optionDef_slOptions* defs, const psloConfig* co
         cd->fdPort = -1;
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
+    freeReturn(result);
+
+    // let the line go quiet before the first command: see waitForQuietLine()...
+    slReturn quietResp = waitForQuietLine(cd->fdPort, QUIET_LINE_MS, QUIET_LINE_MAX_MS);
+    if (isErrorReturn(quietResp)) {
+        close(cd->fdPort);
+        cd->fdPort = -1;
+        return makeErrorMsgReturn(ERR_CAUSE(quietResp), "Error when waiting for the serial line to go quiet");
+    }
+    freeReturn(quietResp);
 
     // the port is now usable, so apply the configured NMEA setting (best effort)...
     applyNMEASettingBestEffort(cd);
@@ -1644,7 +1654,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             NULL,                                                               // constrainer
             actionSaveConfig,                                                   // action
             NULL,                                                               // argument name
-            "save the GPS configuration to battery-backed RAM and EEPROM"
+            "save the GPS configuration to battery-backed RAM, flash and EEPROM"
     };
 
     optionDef_slOptions resetDef = {

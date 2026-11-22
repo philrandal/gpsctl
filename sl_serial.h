@@ -31,4 +31,9 @@ slReturn flushRx( int fdPort );
 slReturn setTermOptions( int fdPort, int baud, int dataBits, int stopBits, bool parityEnable, bool odd );
 slReturn setTermOptionsBaud( int fdPort, int baud );
 
+// After a host baud change: discard input until the line has been quiet for quietMs (at most maxMs in all).
+#define QUIET_LINE_MS     20
+#define QUIET_LINE_MAX_MS 1000
+slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs );
+
 #endif //GPSCTL_SL_SERIAL_H
