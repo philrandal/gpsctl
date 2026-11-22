@@ -1,6 +1,7 @@
 2022-11-22 - Phil Randal, DeepSeek, and Claude - Release 1.41
-    New option --factory_reset=yes: restores the receiver's factory defaults (CFG-CFG clearing and loading all sections, so
-        the saved configuration is erased too), follows the receiver back to its default 9600 baud, then restarts it
+    New option --factory_reset=yes: restores the receiver's factory defaults 
+        (CFG-CFG clearing and loading all sections, so the saved configuration
+        is erased too), follows the receiver back to its default 9600 baud, then restarts it
         (hot-start hardware reset).  The word yes is required, so the option can't be given by accident.
     More fixes in ublox.c
 
