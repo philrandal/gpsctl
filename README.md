@@ -99,7 +99,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
         --galileo               configure the GPS for Galileo Satellites
         --satellites            configure the GPS Satellites only
         --configure_for_timing  configure the GPS for maximum timing precision
-        --save_config           save the GPS configuration to battery-backed RAM
+        --save_config           save the GPS configuration to battery-backed RAM and EEPROM
         --reset                 reset the GPS
         --factory_reset=yes     restore the GPS to its factory defaults, erasing its saved configuration; the GPS goes back to 9600 baud
     -e, --echo[=seconds]        echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)
