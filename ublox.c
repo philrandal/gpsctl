@@ -50,8 +50,8 @@
 #define CFG_GNSS_MAX_MS     1000
 #define GNSS_SETTLE_MS      500   // u-blox: after the ACK of a UBX-CFG-GNSS, wait this long before the next command
 #define GNSS_RESTART_WAIT_MS 500  // after asking for a restart, leave the receiver this long to go down before polling it
-#define GNSS_RESTART_MAX_MS 10000
-#define FACTORY_BAUD 9600       // the receiver's default UART rate // ...and up to this long, in all, for it to answer again
+#define GNSS_RESTART_MAX_MS 10000 // ...and up to this long, in all, for it to answer again
+#define FACTORY_BAUD 9600         // the receiver's default UART rate
 #define CFG_ANT_MAX_MS      1000
 #define CFG_PRT_MAX_MS      1000
 #define CFG_NMEA_MAX_MS     1000
