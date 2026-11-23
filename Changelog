@@ -1,4 +1,6 @@
 Unreleased - Phil Randal and Claude
+    --save_config help text and README now say what is saved where: battery-backed RAM, and flash, EEPROM and SPI flash if
+        the module has them (the save has used device mask 0x17 since 1.40).
     GPSCTL_TRACE=1 in the environment prints every byte sent to and received from the serial port (received bytes grouped
         32 to a line), with receive-buffer flushes, host baud changes and quiet-line waits, and times, to stderr.
     Autobaud (UBX sync method) now listens before it polls.  Every poll sent at a wrong baud rate is a burst of frame
