@@ -1,11 +1,12 @@
 Unreleased - Phil Randal and Claude
     GPSCTL_TRACE=1 in the environment prints every byte sent to and received from the serial port (received bytes grouped
         32 to a line), with receive-buffer flushes, host baud changes and quiet-line waits, and times, to stderr.
-    Autobaud no longer floods the receiver with unanswerable polls.  At each wrong baud rate the synchronizer sent
-        three polls (four seconds' worth at 19200 and below), and each is a burst of frame errors in the receiver; a
-        u-blox that sees more than 100 switches its UART receiver off ("UART RX was disabled"), so even the right
-        rate got no answer.  A poll is now only started if there is time for it to finish (two per rate), and a failed
-        sweep waits 2 s with the line idle before the retry.
+    Autobaud (UBX sync method) now listens before it polls.  Every poll sent at a wrong baud rate is a burst of frame
+        errors in the receiver, and a u-blox that sees more than 100 switches its UART receiver off ("UART RX was
+        disabled") for a few minutes - deaf even at the right rate, so autobaud failed outright.  The first pass now
+        sends nothing, listening at each rate (1.5 s) for the receiver's own NMEA; only the rate where valid NMEA is
+        heard gets a UBX poll.  A receiver with NMEA off falls back to the old poll-at-every-rate pass, which now
+        starts at most two polls per rate (it used to start a third that couldn't finish).
     After the host's baud rate changes (autobaud, -b, --factory_reset), discard input until the line has been quiet for 20 ms
         (at most 1 s) before the first command.  A UART can't find character boundaries while a busy receiver keeps
         sending (the u-blox defaults nearly fill a 9600 baud line), so the reply to a poll sent at once came back with its

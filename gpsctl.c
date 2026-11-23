@@ -959,6 +959,14 @@ static slReturn actionTestPPS(const optionDef_slOptions* defs, const psloConfig*
 }
 */
 
+// Passive synchronizer for the first autobaud pass: listens, sending nothing, for a valid NMEA sentence.  It is given
+// at most PASSIVE_LISTEN_MS (a receiver with NMEA on sends something every second or so), however long autoBaudRate()
+// would allow, so a silent receiver doesn't make the pass slow.
+#define PASSIVE_LISTEN_MS 1500
+static slReturn passiveBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
+    return nmeaBaudRateSynchronizer(fdPort, (maxTimeMs < PASSIVE_LISTEN_MS) ? maxTimeMs : PASSIVE_LISTEN_MS, verbosity);
+}
+
 // Autobaud action function, which infers the GPS baud rate by trying to synchronize at various baud rates.
 static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig* config) {
 
@@ -988,8 +996,42 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
 
-    // now we do the actual work...
-    slReturn abResp = autoBaudRate(cd->fdPort, cd->minBaud, synchronizer, cd->verbosity);
+    // Anything we send at the wrong baud rate is a burst of frame errors in the receiver, and a u-blox that sees more
+    // than 100 of them switches its UART receiver off ("UART RX was disabled") for a few minutes, deaf even at the
+    // right rate.  So for UBX, first listen at each rate, sending nothing, for the receiver's own NMEA, and poll only
+    // at the rate where that is heard.  A receiver with NMEA off says nothing, and then we fall back to polling at
+    // every rate...
+    slReturn abResp = makeOkReturn();
+    bool found = false;
+    if (cd->syncMethod == syncUBX) {
+        if (V2) printf("Listening for the receiver's NMEA output first (nothing is sent)...\n");
+        abResp = autoBaudRate(cd->fdPort, cd->minBaud, passiveBaudRateSynchronizer, cd->verbosity);
+        if (isOkReturn(abResp)) {
+            // confirm with a poll, at what should now be the right rate...
+            slReturn cfResp = ubxSynchronizer(cd->fdPort, 4000, cd->verbosity);
+            if (isOkReturn(cfResp) && getReturnInfoBool(cfResp)) found = true;
+            else if (V1) printf("Heard NMEA at %d baud but the receiver did not answer a UBX poll there; trying every rate...\n",
+                                getReturnInfoInt32(abResp));
+            freeReturn(cfResp);
+        }
+        else {
+            if (V2) printf("Heard no NMEA output at any rate; polling at each rate instead...\n");
+            freeReturn(abResp);
+        }
+        if (!found && isOkReturn(abResp)) freeReturn(abResp);  // (an error one was freed above)
+        if (!found) {
+            // the passive pass leaves the port at some rate; start the polling sweep from the top again...
+            result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
+            if (isErrorReturn(result)) {
+                close(cd->fdPort);
+                cd->fdPort = -1;
+                return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
+            }
+        }
+    }
+
+    // now we do the actual work (unless the passive pass already found the rate)...
+    if (!found) abResp = autoBaudRate(cd->fdPort, cd->minBaud, synchronizer, cd->verbosity);
     if (isErrorReturn(abResp)) {
         close(cd->fdPort);
         cd->fdPort = -1;

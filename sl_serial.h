@@ -34,7 +34,6 @@ slReturn setTermOptionsBaud( int fdPort, int baud );
 // After a host baud change: discard input until the line has been quiet for quietMs (at most maxMs in all).
 #define QUIET_LINE_MS     20
 #define QUIET_LINE_MAX_MS 1000
-#define AUTOBAUD_COOLDOWN_MS 2000  // idle time after a failed autobaud sweep, before a retry
 slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs );
 
 #endif //GPSCTL_SL_SERIAL_H

@@ -568,11 +568,6 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         }
     }
 
-    // The wrong-rate polls will have given the receiver frame errors, and it switches its UART receiver off for a
-    // while after too many, so leave the line idle before anyone tries again...
-    struct timespec cool = { AUTOBAUD_COOLDOWN_MS / 1000, (long) (AUTOBAUD_COOLDOWN_MS % 1000) * 1000000L };
-    while( nanosleep( &cool, &cool ) != 0 && errno == EINTR )
-        ;
     return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 921600 to %d", minBaud );
 }
 
