@@ -1017,8 +1017,9 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         else {
             if (V2) printf("Heard no NMEA output at any rate; polling at each rate instead...\n");
             freeReturn(abResp);
+            abResp = NULL;  // (freed: testing or freeing it again would read a freed record)
         }
-        if (!found && isOkReturn(abResp)) freeReturn(abResp);  // (an error one was freed above)
+        if (!found && (abResp != NULL)) freeReturn(abResp);  // (an error one was freed above, and left NULL)
         if (!found) {
             // the passive pass leaves the port at some rate; start the polling sweep from the top again...
             result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
