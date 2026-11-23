@@ -1771,8 +1771,10 @@ extern slReturn ubxSynchronizer(int fdPort, int maxTimeMs, int verbosity) {
     if (pollMs > INT_MAX / 2) pollMs = INT_MAX / 2;
     if (maxTimeMs < 2 * pollMs) maxTimeMs = (int) (2 * pollMs);
 
-    // read characters until either we appear to be synchronized or we run out of time...
-    while (currentTimeMs() < start + maxTimeMs) {
+    // poll until either we appear to be synchronized or there isn't time for another whole poll.  Starting a poll
+    // that can't finish only sends more bytes: at the wrong baud rate each one is a burst of frame errors in the
+    // receiver, and a u-blox disables its UART receiver after more than 100 of them ("UART RX was disabled")...
+    while (currentTimeMs() + pollMs <= start + maxTimeMs) {
 
         // send the request message and wait for the response...
         ubxType type = {UBX_MON, UBX_MON_VER};

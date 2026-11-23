@@ -126,6 +126,10 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
       gpsctl -p /dev/serial1 -b 9600 -e=5
         Exactly the same as the preceding example, using short options.
 
+    Environment:
+      GPSCTL_TRACE=1  prints every byte sent to and received from the serial port, with times, to stderr
+                      (for finding out what really happens on the port; unset or 0 turns it off)
+
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing
 

@@ -28,6 +28,7 @@
 #include "sl_bits.h"
 #include "sl_return.h"
 #include <time.h>
+#include <stdarg.h>
 
 
 // Returns speed information for the given port.
@@ -86,6 +87,72 @@ extern slReturn verifySerialDevice( const char* deviceName ) {
 }
 
 
+// --- Optional trace of everything that crosses the serial port (set GPSCTL_TRACE=1): bytes sent and received (received
+// bytes are grouped, 32 to a line), receive-buffer flushes, host baud changes and quiet-line waits, with the time in
+// seconds since the first trace line.  It goes to stderr, so it can be kept apart from the normal output.  For finding
+// out what really happened on a port.
+static bool        traceEnabled = false;
+static bool        traceChecked = false;
+static long long   traceStartMs = 0;
+static unsigned char traceRxBytes[32];
+static int         traceRxCount = 0;
+static long long   traceRxMs = 0;
+
+static bool traceOn( void ) {
+    if( !traceChecked ) {
+        traceChecked = true;
+        const char* v = getenv( "GPSCTL_TRACE" );
+        traceEnabled = (v != NULL) && (v[0] != '\0') && (v[0] != '0');
+        if( traceEnabled ) traceStartMs = currentTimeMs();
+    }
+    return traceEnabled;
+}
+
+static void traceHexLine( const char* tag, long long ms, const unsigned char* bytes, int count ) {
+    fprintf( stderr, "[%8.3f] %s %3d bytes:", (double) (ms - traceStartMs) / 1000.0, tag, count );
+    for( int i = 0; i < count; i++ ) fprintf( stderr, " %02X", bytes[i] );
+    fprintf( stderr, "  |" );
+    for( int i = 0; i < count; i++ ) fputc( (bytes[i] >= 32 && bytes[i] < 127) ? bytes[i] : '.', stderr );
+    fprintf( stderr, "|\n" );
+}
+
+static void traceRxFlush( void ) {
+    if( traceRxCount > 0 ) traceHexLine( "RX", traceRxMs, traceRxBytes, traceRxCount );
+    traceRxCount = 0;
+}
+
+static void traceRx( unsigned char c ) {
+    if( !traceOn() ) return;
+    if( traceRxCount == 0 ) traceRxMs = currentTimeMs();
+    traceRxBytes[traceRxCount++] = c;
+    if( traceRxCount == (int) sizeof traceRxBytes ) traceRxFlush();
+}
+
+static void traceTx( const void* data, size_t length ) {
+    if( !traceOn() ) return;
+    traceRxFlush();
+    long long now = currentTimeMs();
+    const unsigned char* p = data;
+    while( length > 0 ) {
+        int n = (int) (length > 32 ? 32 : length);
+        traceHexLine( "TX", now, p, n );
+        p += n; length -= (size_t) n;
+    }
+}
+
+static void traceEvent( const char* fmt, ... ) __attribute__((format(printf, 1, 2)));
+static void traceEvent( const char* fmt, ... ) {
+    if( !traceOn() ) return;
+    traceRxFlush();
+    fprintf( stderr, "[%8.3f] ", (double) (currentTimeMs() - traceStartMs) / 1000.0 );
+    va_list ap;
+    va_start( ap, fmt );
+    vfprintf( stderr, fmt, ap );
+    va_end( ap );
+    fputc( '\n', stderr );
+}
+
+
 // Reads a single character from the given serial port, waiting at most the given number of milliseconds.  On an Ok
 // response, returns the character read as a char in additional info.  Returns a warning if it timed out.
 extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
@@ -114,8 +181,10 @@ extern slReturn readSerialChar( int fdPort, long long msTimeout ) {
         ssize_t rx_length = read( fdPort, &c, 1 );
 
         // if we read a character, return it...
-        if( rx_length == 1 )
+        if( rx_length == 1 ) {
+            traceRx( c );
             return makeOkInfoReturn( char2info(c) );
+        }
 
         // A zero-length read means the kernel has hung the port up: the device went away (a USB serial adapter
         // unplugged or reset, for instance).  Say that plainly, because further up this otherwise looks like a
@@ -148,6 +217,7 @@ extern slReturn writeSerialData( int fdPort, const void* data, size_t length ) {
 
     if( fdPort < 0 ) return makeErrorMsgReturn( ERR_ROOT, "invalid serial port file descriptor" );
 
+    traceTx( data, length );
     const unsigned char* ptr = data;
     size_t remaining = length;
     long long startTime = currentTimeMs();
@@ -271,6 +341,7 @@ extern slReturn getBaudRate( int cookie ) {
 
 // Flush the receive buffer.
 extern slReturn flushRx( int fdPort ) {
+    traceEvent( "flush receive buffer" );
     int result = tcflush( fdPort, TCIFLUSH );
     if( result < 0 )
         return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcflush(): %s", strerror(errno) );
@@ -303,6 +374,7 @@ extern slReturn setTermOptionsBaud( int fdPort, int baud ) {
     // window open...
     result = tcsetattr( fdPort, TCSANOW, &options );
     if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcsetattr(): %s", strerror(errno) );
+    traceEvent( "set host baud %d", baud );
     result = tcflush( fdPort, TCIFLUSH );
     if( result < 0 ) return makeErrorFmtMsgReturn( ERR_ROOT, "error from tcflush(): %s", strerror(errno) );
     return makeOkReturn();
@@ -319,11 +391,13 @@ extern slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs ) {
     clock_gettime( CLOCK_MONOTONIC, &ts );
     long long start = (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
     byte buffer[256];
+    long long discarded = 0;
+    traceEvent( "wait for the line to go quiet (%d ms, at most %d ms)", quietMs, maxMs );
 
     while( true ) {
         clock_gettime( CLOCK_MONOTONIC, &ts );
         long long elapsed = (long long) ts.tv_sec * 1000 + ts.tv_nsec / 1000000 - start;
-        if( elapsed >= maxMs ) return makeOkReturn();
+        if( elapsed >= maxMs ) { traceEvent( "line still busy after %lld ms (%lld bytes discarded)", elapsed, discarded ); return makeOkReturn(); }
 
         struct pollfd pfd = { fdPort, POLLIN, 0 };
         int pr = poll( &pfd, 1, quietMs );
@@ -331,11 +405,15 @@ extern slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs ) {
             if( errno == EINTR ) continue;
             return makeErrorFmtMsgReturn( ERR_ROOT, "error from poll(): %s", strerror(errno) );
         }
-        if( pr == 0 ) return makeOkReturn();   // nothing for quietMs: the line is quiet
+        if( pr == 0 ) {                        // nothing for quietMs: the line is quiet
+            traceEvent( "line quiet after %lld ms (%lld bytes discarded)", elapsed, discarded );
+            return makeOkReturn();
+        }
 
         if( (pfd.revents & (POLLERR | POLLHUP | POLLNVAL)) && !(pfd.revents & POLLIN) )
             return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
         ssize_t n = read( fdPort, buffer, sizeof buffer );
+        if( n > 0 ) discarded += n;
         if( n < 0 && errno != EINTR && errno != EAGAIN ) {
             if( errno == EIO || errno == EPIPE || errno == ENODEV )
                 return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
@@ -489,6 +567,7 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
             return makeOkInfoReturn(int2info( bauds[i] ));
         }
     }
+
     return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 921600 to %d", minBaud );
 }
 
