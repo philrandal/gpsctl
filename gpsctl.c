@@ -1247,7 +1247,8 @@ static slReturn  actionQuery(const optionDef_slOptions* defs, const psloConfig* 
 }
 
 
-// Save configuration action function, which saves the current U-Blox GPS configuration to battery-backed RAM.
+// Save configuration action function, which saves the current U-Blox GPS configuration (ports, messages, navigation,
+// receiver manager and antenna settings) to battery-backed RAM, and to flash, EEPROM and SPI flash if the module has them.
 static slReturn  actionSaveConfig(const optionDef_slOptions* defs, const psloConfig* config) {
 
     // make sure we're synchronized...
@@ -1697,7 +1698,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             NULL,                                                               // constrainer
             actionSaveConfig,                                                   // action
             NULL,                                                               // argument name
-            "save the GPS configuration to battery-backed RAM, flash and EEPROM"
+            "save the GPS configuration to battery-backed RAM, and to flash, EEPROM and SPI flash if the module has them"
     };
 
     optionDef_slOptions resetDef = {

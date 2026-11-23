@@ -42,7 +42,7 @@ and enables NMEA version 4.1 output for Galileo
 * Configures the U-Blox GPS for maximum timing pulse accuracy (useful for building a stratum 1 NTP server
 based on the GPS' notion of time).
 * Disables NMEA RMC, VTG, GSA, GSV, GLL, GGA messages and enables ZDA (for NTP driver 20 mode 8)
-* Saves the U-Blox GPS configuration to on-module battery-backed RAM, flash and EEPROM.
+* Saves the U-Blox GPS configuration to on-module battery-backed RAM, and to flash, EEPROM and SPI flash if the module has them.
 * Resets the U-Blox GPS, or restores its factory defaults.
 
 ## Dependencies
@@ -99,7 +99,7 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
         --galileo               configure the GPS for Galileo Satellites
         --satellites            configure the GPS Satellites only
         --configure_for_timing  configure the GPS for maximum timing precision
-        --save_config           save the GPS configuration to battery-backed RAM, flash and EEPROM
+        --save_config           save the GPS configuration to battery-backed RAM, and to flash, EEPROM and SPI flash if the module has them
         --reset                 reset the GPS
         --factory_reset=yes     restore the GPS to its factory defaults, erasing its saved configuration; the GPS goes back to 9600 baud
     -e, --echo[=seconds]        echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)
