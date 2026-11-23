@@ -12,7 +12,7 @@ Unreleased - Phil Randal and Claude
         sending (the u-blox defaults nearly fill a 9600 baud line), so the reply to a poll sent at once came back with its
         B5 sync byte corrupted, and autobaud could fail on the right rate.
 
-2026-11-22 - Phil Randal, DeepSeek, and Claude - Release 1.41
+Unreleased - Phil Randal, DeepSeek, and Claude
     New option --factory_reset=yes: restores the receiver's factory defaults 
         (CFG-CFG clearing and loading all sections, so the saved configuration
         is erased too), follows the receiver back to its default 9600 baud, then 
