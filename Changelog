@@ -28,6 +28,7 @@ Unreleased - Phil Randal and Claude
         (at most 1 s) before the first command.  A UART can't find character boundaries while a busy receiver keeps
         sending (the u-blox defaults nearly fill a 9600 baud line), so the reply to a poll sent at once came back with its
         B5 sync byte corrupted, and autobaud could fail on the right rate.
+    Better commandline option error reporting
 
 Unreleased - Phil Randal, DeepSeek, and Claude
     New option --factory_reset=yes: restores the receiver's factory defaults 
