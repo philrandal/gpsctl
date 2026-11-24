@@ -245,7 +245,7 @@ To view the current u-blox config
     Threshold above C/No =         8 ; satellites
     C/No threshold =               20 ; dBHz
     Static hold max distance =     0 ; meters
-    # UTC Standard: AutoUTC = 0, USNO_UTC = 3, GLONASS_UTC = 6, BeiDou_UTC = 7
+    # UTC Standard: Auto = 0, USNO = 3, EU = 5, GLONASS = 6, BeiDou = 7, NPLI = 8, NICT = 9
     UTC standard =                 3
 
     [Time Pulse]
