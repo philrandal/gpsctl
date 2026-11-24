@@ -1,4 +1,7 @@
 Unreleased - Phil Randal and Claude
+    waitForQuietLine() stops with "serial port hung up" when read() returns zero (it used to spin on a hung-up port for up to
+        a second).  After a hardware restart that gets no answer, the error now suggests the -a option (the receiver may
+        have come back at its saved baud rate), and the factory reset sets the client's baud rate from the one constant.
     The NMEA version setting is checked against the versions u-blox defines (2.1, 2.3, 4.0, 4.1 or 4.10, 4.11; or the
         digits 21, 23, 40, 41, 410, 411): anything else is reported and the default (4.1) used.  4.11 is now sent as 0x4B (it
         used to be sent as 0x41, i.e. 4.1).  Decimal settings (fixed altitude and its variance, DoP masks) are range-checked

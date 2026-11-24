@@ -826,7 +826,7 @@ static slReturn ubxHardwareRestartAndWait(int fdPort, int verbosity) {
     bool answered = getReturnInfoBool(syncResp);
     freeReturn(syncResp);
     if (!answered)
-        return makeErrorMsgReturn(ERR_ROOT, "the GPS did not answer after it was restarted");
+        return makeErrorMsgReturn(ERR_ROOT, "the GPS did not answer after it was restarted (try the -a option)");
     if (verbosity >= 2) printf("GPS restarted...\n");
     return makeOkReturn();
 }
@@ -893,6 +893,12 @@ extern slReturn ubxFactoryReset(int fdPort, int verbosity) {
         return makeErrorMsgReturn(ERR_CAUSE(restartResp), "problem restarting the GPS after the factory reset");
     freeReturn(restartResp);
     return makeOkReturn();
+}
+
+// The receiver's default UART rate, which ubxFactoryReset() leaves the port at.  gpsctl.c keeps the client's idea of the
+// port's rate in step with it.
+extern int ubxFactoryBaud(void) {
+    return FACTORY_BAUD;
 }
 
 extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {

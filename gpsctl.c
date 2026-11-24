@@ -1314,7 +1314,7 @@ static slReturn  actionFactoryReset(const optionDef_slOptions* defs, const psloC
     freeReturn(frResp);
 
     // the port is now at the receiver's default rate, and nothing we applied before is in effect any more...
-    cd->baud = 9600;
+    cd->baud = ubxFactoryBaud();
     cd->ubxSynchronized = true;
     cd->nmeaApplied = false;
     return makeOkReturn();
