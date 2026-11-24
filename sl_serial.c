@@ -414,6 +414,8 @@ extern slReturn waitForQuietLine( int fdPort, int quietMs, int maxMs ) {
             return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
         ssize_t n = read( fdPort, buffer, sizeof buffer );
         if( n > 0 ) discarded += n;
+        if( n == 0 )  // the port has been hung up: poll() would report it again at once, so don't spin on it (as readSerialChar())...
+            return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
         if( n < 0 && errno != EINTR && errno != EAGAIN ) {
             if( errno == EIO || errno == EPIPE || errno == ENODEV )
                 return makeErrorMsgReturn( ERR_ROOT, "serial port hung up (device disconnected?)" );
