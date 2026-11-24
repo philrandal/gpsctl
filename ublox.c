@@ -788,6 +788,33 @@ static int getConfigNMEAVersion(const char *key, int notfound) {
 }
 
 
+// UTC standards u-blox defines for CFG-NAV5 that ublox.h's utcType does not name.  (The values are those of the protocol
+// description: 0 automatic, 3 USNO (GPS), 5 the European laboratories (Galileo), 6 SU (GLONASS), 7 NTSC (BeiDou), 8 NPLI
+// (India), 9 NICT (Japan).  The set is the one this project's Changelog (1.41) lists; 5, 8 and 9 are newer than the M8
+// SPG 3.01 protocol 18 receiver that gpsctl has been tested on, and are not confirmed against its interface description.)
+enum { EU_UTC = 5, NPLI_UTC = 8, NICT_UTC = 9 };
+
+// Reads the UTC standard from the configuration.  It is a U1, but only these values mean anything to the receiver, so a
+// typo is reported (on stderr) and the default used, rather than sent.
+static int getConfigUTCStandard(const char *key, int notfound) {
+    int utc = getConfigInt(key, notfound, 0, 255);
+    switch (utc) {
+        case AutoUTC:
+        case USNO_UTC:
+        case EU_UTC:
+        case GLONASS_UTC:
+        case BeiDou_UTC:
+        case NPLI_UTC:
+        case NICT_UTC:
+            return utc;
+        default:
+            fprintf(stderr, "Warning: %s = %d is not a UTC standard u-blox defines (0, 3, 5, 6, 7, 8 or 9); using the default (%d)\n",
+                    key, utc, notfound);
+            return notfound;
+    }
+}
+
+
 // Reads the dynamic model from the configuration.  The model is a U1, so 0..255 all fit the field, but u-blox defines
 // only 0 (portable) and 2..10 (1 is not used); a receiver refuses the rest.  Check the published values rather than the
 // width of the field, so a typo is reported instead of sent.  (Bike, 10, needs protocol 19.20 or newer.)
@@ -1214,7 +1241,7 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     put_uint8_slBuffer(b, 24, getConfigInt("navigation engine:threshold above c/no", 8, 0, 255));                    // number of satellites that must be above CNo threshold...
     put_uint8_slBuffer(b, 25, getConfigInt("navigation engine:c/no threshold", 20, 0, 255));                          // CNo threshold...
     put_uint16_slBuffer(b, 28, getConfigInt("navigation engine:static hold max distance", 0, 0, 65535));               // static hold distance threshold...
-    put_uint8_slBuffer(b, 30, getConfigInt("navigation engine:utc standard", USNO_UTC, 0, 255));                     // use USNO UTC...
+    put_uint8_slBuffer(b, 30, getConfigUTCStandard("navigation engine:utc standard", USNO_UTC));                               // use USNO UTC...
 
     // send it back to the GPS...
     ubxMsg newNav5Msg = createUbxMsg(nav5Msg.type, b);
@@ -1530,11 +1557,14 @@ extern char* getFixModeName(fixMode mode) {
 
 
 extern char* getUTCTypeName(utcType utc) {
-    switch (utc) {
+    switch ((int) utc) {                   // (int: some values are not in the utcType enum)
         case AutoUTC:     return "Auto";
         case USNO_UTC:    return "USNO";
         case GLONASS_UTC: return "GLONASS";
         case BeiDou_UTC:  return "BeiDou";
+        case EU_UTC:      return "EU";
+        case NPLI_UTC:    return "NPLI";
+        case NICT_UTC:    return "NICT";
         default:          return "unknown";
     }
 }
