@@ -788,6 +788,31 @@ static int getConfigNMEAVersion(const char *key, int notfound) {
 }
 
 
+// Reads the dynamic model from the configuration.  The model is a U1, so 0..255 all fit the field, but u-blox defines
+// only 0 (portable) and 2..10 (1 is not used); a receiver refuses the rest.  Check the published values rather than the
+// width of the field, so a typo is reported instead of sent.  (Bike, 10, needs protocol 19.20 or newer.)
+static int getConfigDynamicModel(const char *key, int notfound) {
+    int model = getConfigInt(key, notfound, Portable, Bike);
+    switch (model) {
+        case Portable:
+        case Stationary:
+        case Pedestrian:
+        case Automotive:
+        case Sea:
+        case Air1G:
+        case Air2G:
+        case Air4G:
+        case Watch:
+        case Bike:
+            return model;
+        default:
+            fprintf(stderr, "Warning: %s = %d is not one of the dynamic models u-blox defines; using the default (%d)\n",
+                    key, model, notfound);
+            return notfound;
+    }
+}
+
+
 // A channel count goes into a single byte of the CFG-GNSS message.
 static int getConfigChannels(const char *key, int notfound) {
     return getConfigInt(key, notfound, 0, 255);
@@ -1175,11 +1200,11 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     // make our changes...
     slBuffer* b = nav5Msg.body;
     put_uint16_slBuffer(b,  0, 0x05F7);  // configure all settings (including DGPS/DGNSS)...
-    put_uint8_slBuffer(b,  2, getConfigInt("navigation engine:dynamic model", Stationary, 0, 255));                  // use stationary mode...
-    put_uint8_slBuffer(b,  3, getConfigInt("navigation engine:fix mode", Only3D, 0, 255));                         // use any mode...
+    put_uint8_slBuffer(b,  2, getConfigDynamicModel("navigation engine:dynamic model", Stationary));                 // use stationary mode...
+    put_uint8_slBuffer(b,  3, getConfigInt("navigation engine:fix mode", Only3D, Only2D, Auto2D3D));               // use any mode...
     put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude (2d)", 0, -21474836.48, 21474836.47), 100.0));// fixed altitude for 2D (not used)...
     put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude variance (2d)", 0, 0.0, 429496.7295), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
-    put_uint8_slBuffer(b, 12, getConfigInt("navigation engine:minimum elevation", 20, -128, 127));                       // minimum elevation is 5 degrees...
+    put_uint8_slBuffer(b, 12, getConfigInt("navigation engine:minimum elevation", 20, -90, 90));                         // minimum elevation is 5 degrees...
     put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(getConfigDouble("navigation engine:position dop mask", 10, 0.0, 6553.5), 10.0));   // position DoP mask is 10.0...
     put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(getConfigDouble("navigation engine:time dop mask", 10, 0.0, 6553.5), 10.0));       // time DoP mask is 10.0...
     put_uint16_slBuffer(b, 18, getConfigInt("navigation engine:position accuracy mask", 40, 0, 65535));               // position accuracy mask is 100 meters...
@@ -1488,6 +1513,7 @@ extern char* getDynamicModelName(dynModel model) {
         case Air2G:      return "Air (less than 2G acceleration)";
         case Air4G:      return "Air (less than 4G acceleration)";
         case Watch:      return "Watch";
+        case Bike:       return "Bike";
         default:         return "unknown";
     }
 }
