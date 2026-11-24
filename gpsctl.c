@@ -1864,9 +1864,11 @@ int main(int argc, char *argv[]) {
     // fetch the unparsed-argument list before releasing the return value...
     args_slOptions* args = failed ? NULL : (args_slOptions*) getReturnInfo(resp);
 
+    // A failed run always says why, even in quiet mode: a one-line error is not the chatter that -q suppresses, and
+    // "Errors occurred!" left the user unable to tell which option or setting was wrong...
     if (failed)
         switch (clientData.verbosity) {
-            case 0:  printf("Errors occurred!\n"); break;
+            case 0:
             case 1:  printReturn(resp, false, false); break;
             case 2:  printReturn(resp, true, false); break;
             case 3:  printReturn(resp, true, true); break;

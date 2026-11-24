@@ -633,7 +633,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
                                                       curOpt );
                     }
                 } else
-                    return errorMessageHelper(ERR_ROOT, DEBUG, "parsing", "unrecognized long option (\"%s\") in argument %d",
+                    return errorMessageHelper(ERR_ROOT, DEBUG, "parsing", "invalid option \"--%s\" in argument %d",
                                               curOpt, CUR_ARG_INDEX);
             }
 
@@ -653,7 +653,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
                         if( isErrorReturn( response ) ) return response;
                     } else
                         return errorMessageHelper(ERR_ROOT, DEBUG, "parsing",
-                                                  "unrecognized single-hyphen option (\"-\") in argument %d",
+                                                  "invalid option \"-\" in argument %d",
                                                   CUR_ARG_INDEX);
                 } else {
                     char *curOpt = CUR_ARG + 1;
@@ -685,7 +685,7 @@ static slReturn parsePhase( int argc, const psloConfig *config, state_slOptions 
                             // otherwise, someone fed us an option we don't know about...
                         else
                             return errorMessageHelper(ERR_ROOT, DEBUG, "parsing",
-                                                      "unrecognized single character option (\"%c\") in argument %d",
+                                                      "invalid option \"-%c\" in argument %d",
                                                       *curOpt, CUR_ARG_INDEX);
                     }
                 }
