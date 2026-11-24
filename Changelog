@@ -1,4 +1,12 @@
 Unreleased - Phil Randal and Claude
+    When querying configuration, NMEA version 4.11 is now displayed correctly as 4.11 in both text and JSON outputs (it
+        previously printed as 4.b in text and 5.1 in JSON due to 0x4B hex encoding).
+    safeMalloc() safely handles size 0 requests without failing on platforms where malloc(0) returns NULL, and qsort()
+        is guarded against zero-satellite queries.
+    The gpsctl:sync method configuration option now requires at least syncASCII (1), preventing syncNone (0) from being
+        accepted and failing during autobaud/sync.
+    Plugged several memory leaks: freed slReturn records in sendUbxAckedMsg(), autoBaudRate(), and actionAutoBaud(); cleared
+        dangling abResp pointer in actionAutoBaud(); and freed the iniparser dictionary before program exit.
     waitForQuietLine() stops with "serial port hung up" when read() returns zero (it used to spin on a hung-up port for up to
         a second).  After a hardware restart that gets no answer, the error now suggests the -a option (the receiver may
         have come back at its saved baud rate), and the factory reset sets the client's baud rate from the one constant.

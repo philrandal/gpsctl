@@ -35,7 +35,7 @@ extern void stackDump( void ) {
 // A safe replacement for malloc that checks the result.  On failure, prints an error message and stack trace
 // to stderr.  Otherwise, it behaves EXACTLY like malloc().
 extern void *safeMalloc( size_t size ) {
-    void *result = malloc( size );
+    void *result = malloc( size == 0 ? 1 : size );
     if( !result ) {
         fprintf( stderr, "ERROR: malloc() failed\n" );
         stackDump();

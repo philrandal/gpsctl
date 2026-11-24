@@ -540,6 +540,7 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         slReturn stobResp = setTermOptionsBaud( fdPort, bauds[i] );
         if( isErrorReturn( stobResp ) )
             return makeErrorFmtMsgReturn( ERR_CAUSE( stobResp ), "problem trying to set baud rate to %d", bauds[i] );
+        freeReturn( stobResp );
         slReturn wqResp = waitForQuietLine( fdPort, QUIET_LINE_MS, QUIET_LINE_MAX_MS );
         if( isErrorReturn( wqResp ) )
             return makeErrorFmtMsgReturn( ERR_CAUSE( wqResp ), "problem waiting for the line to go quiet at %d baud", bauds[i] );

@@ -370,7 +370,8 @@ static slReturn doSatelliteQuery(const clientData_slOptions* clientData) {
     freeReturn(ugsResp);
 
     // sort the result by used or not, then in descending order of CNo...
-    qsort(satellites.satellites, (unsigned) satellites.numberOfSatellites, sizeof(ubxSatellite), cmpSatellite);
+    if (satellites.numberOfSatellites > 0 && satellites.satellites != NULL)
+        qsort(satellites.satellites, (unsigned) satellites.numberOfSatellites, sizeof(ubxSatellite), cmpSatellite);
 
     if (clientData->json) {
 
@@ -554,7 +555,8 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
         cJSON_AddNumberToObject(pwr, "on_time_secs_for_interval", config.powerOnTimeSecs);
 
         cJSON_AddBoolToObject(nmea, "enabled", config.nmeaEnabled);
-        cJSON_AddNumberToObject(nmea, "version", (config.nmeaVersion / 16) + (config.nmeaVersion % 16) * 0.1);
+        double nmeaver = (config.nmeaVersion == 0x4B) ? 4.11 : ((config.nmeaVersion / 16) + (config.nmeaVersion % 16) * 0.1);
+        cJSON_AddNumberToObject(nmea, "version", nmeaver);
         cJSON_AddBoolToObject(nmea, "GGA", config.GGA);
         cJSON_AddBoolToObject(nmea, "GLL", config.GLL);
         cJSON_AddBoolToObject(nmea, "GSA", config.GSA);
@@ -645,7 +647,10 @@ static slReturn doConfigQuery(const clientData_slOptions* clientData) {
 
         printf("  NMEA:\n");
         printf("    Enabled:                      %s\n", yesNo(config.nmeaEnabled));
-        printf("    Version:                      %01x.%01x\n",               (unsigned) config.nmeaVersion / 16, (unsigned) config.nmeaVersion % 16);
+        if (config.nmeaVersion == 0x4B)
+            printf("    Version:                      4.11\n");
+        else
+            printf("    Version:                      %01x.%01x\n",           (unsigned) config.nmeaVersion / 16, (unsigned) config.nmeaVersion % 16);
         printf("    GGA:                          %s\n", onOff(config.GGA));
         printf("    GLL:                          %s\n", onOff(config.GLL));
         printf("    GSA:                          %s\n", onOff(config.GSA));
@@ -995,6 +1000,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         cd->fdPort = -1;
         return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
     }
+    freeReturn(result);
 
     // Anything we send at the wrong baud rate is a burst of frame errors in the receiver, and a u-blox that sees more
     // than 100 of them switches its UART receiver off ("UART RX was disabled") for a few minutes, deaf even at the
@@ -1019,7 +1025,10 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
             freeReturn(abResp);
             abResp = NULL;  // (freed: testing or freeing it again would read a freed record)
         }
-        if (!found && (abResp != NULL)) freeReturn(abResp);  // (an error one was freed above, and left NULL)
+        if (!found && (abResp != NULL)) {
+            freeReturn(abResp);
+            abResp = NULL;
+        }
         if (!found) {
             // the passive pass leaves the port at some rate; start the polling sweep from the top again...
             result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
@@ -1028,6 +1037,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
                 cd->fdPort = -1;
                 return makeErrorMsgReturn(ERR_CAUSE(result), "Error when setting terminal options");
             }
+            freeReturn(result);
         }
     }
 
@@ -1833,7 +1843,7 @@ int main(int argc, char *argv[]) {
         }
     }
     clientData.verbosity  = getConfigInt("gpsctl:verbosity", 1, INT_MIN, INT_MAX);               // (any int, but it must be a number)
-    clientData.syncMethod = (syncType) getConfigInt("gpsctl:sync method", syncUBX, syncNone, syncUBX);
+    clientData.syncMethod = (syncType) getConfigInt("gpsctl:sync method", syncUBX, syncASCII, syncUBX);
     clientData.nmea =   getConfigBool("nmea:enabled", -1);
     // iniparser_dump_ini(gpsctlConf, stdout);
     psloConfig config = {
@@ -1871,6 +1881,10 @@ int main(int argc, char *argv[]) {
         free(args);
     }
     free((void*) config.optionDefs);
+    if (gpsctlConf != NULL) {
+        iniparser_freedict(gpsctlConf);
+        gpsctlConf = NULL;
+    }
 
     exit(failed ? EXIT_FAILURE : EXIT_SUCCESS);
 }

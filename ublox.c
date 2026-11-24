@@ -432,6 +432,7 @@ static slReturn sendUbxMsg(int fdPort, ubxMsg msg) {
 static slReturn sendUbxAckedMsg(int fdPort, ubxMsg msg) {
     slReturn result = sendUbxMsg(fdPort, msg);
     if (isErrorReturn(result)) return result;
+    freeReturn(result);
     return ubxAckWait(fdPort, msg.type, (int) (ACK_WAIT_MS + lineBacklogMs(fdPort)));  // (queued output can delay the ACK at slow rates)
 }
 
