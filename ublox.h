@@ -69,7 +69,7 @@ typedef struct {
 
 
 typedef enum { GPS, SBAS, Galileo, BeiDou, IMES, QZSS, GLONASS } gnssID;
-typedef enum { Portable, Stationary = 2, Pedestrian, Automotive, Sea, Air1G, Air2G, Air4G, Watch } dynModel;
+typedef enum { Portable, Stationary = 2, Pedestrian, Automotive, Sea, Air1G, Air2G, Air4G, Watch, Bike } dynModel;
 typedef enum { Only2D = 1, Only3D, Auto2D3D } fixMode;
 typedef enum { AutoUTC, USNO_UTC = 3, GLONASS_UTC = 6, BeiDou_UTC } utcType;
 typedef enum { tgUTC, tgGPS, tgGLONASS, tgBeiDou, tgGalileo } timegridType;
