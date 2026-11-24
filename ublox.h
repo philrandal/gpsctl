@@ -228,7 +228,7 @@ slReturn ubxReset( int fdPort, int verbosity );
 slReturn ubxFactoryReset( int fdPort, int verbosity );
 int getConfigBool( const char *key, int notfound );
 int getConfigInt( const char *key, long notfound, long min, long max );
-double getConfigDouble( const char *key, double notfound );
+double getConfigDouble( const char *key, double notfound, double min, double max );
 slReturn ubxConfigNMEAVersion( int fdPort, int verbosity, uint8_t nmeaVersion );
 slReturn ubxConfigSatellites( int fdPort, int verbosity );
 slReturn ubxConfigTimePulse( int fdPort, int verbosity );

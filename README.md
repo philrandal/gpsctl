@@ -181,6 +181,7 @@ To view the current u-blox config
     [NMEA]
     # enabled = true / false
     enabled = true
+    # version = 2.1 / 2.3 / 4.0 / 4.1 / 4.11
     version = 4.1
     GGA = off
     GLL = off

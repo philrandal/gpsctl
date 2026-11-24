@@ -1,4 +1,8 @@
 Unreleased - Phil Randal and Claude
+    The NMEA version setting is checked against the versions u-blox defines (2.1, 2.3, 4.0, 4.1 or 4.10, 4.11; or the
+        digits 21, 23, 40, 41, 410, 411): anything else is reported and the default (4.1) used.  4.11 is now sent as 0x4B (it
+        used to be sent as 0x41, i.e. 4.1).  Decimal settings (fixed altitude and its variance, DoP masks) are range-checked
+        against the size of the field they go in, and the scaling no longer overflows an int.
     --save_config help text and README now say what is saved where: battery-backed RAM, and flash, EEPROM and SPI flash if
         the module has them (the save has used device mask 0x17 since 1.40).
     GPSCTL_TRACE=1 in the environment prints every byte sent to and received from the serial port (received bytes grouped

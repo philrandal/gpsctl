@@ -723,9 +723,9 @@ extern int getConfigInt(const char *key, long notfound, long min, long max) {
 
 // Reads a decimal setting from the configuration, as strictly as getConfigInt() reads an integer.  iniparser_getdouble()
 // uses atof(), which reads "abc" as 0 and "2.5m" as 2.5, so a typo quietly became a setting.  Text that isn't entirely a
-// finite number is reported (on stderr) and the default is used instead.  Units or other remarks belong in a comment
-// (after ';' or '#').
-extern double getConfigDouble(const char *key, double notfound) {
+// finite number, or a value outside min..max, is reported (on stderr) and the default is used instead.  Units or other
+// remarks belong in a comment (after ';' or '#').
+extern double getConfigDouble(const char *key, double notfound, double min, double max) {
     const char *text = iniparser_getstring(gpsctlConf, key, NULL);
     if (text == NULL) return notfound;                               // not in the configuration: the default
 
@@ -735,7 +735,55 @@ extern double getConfigDouble(const char *key, double notfound) {
         fprintf(stderr, "Warning: %s = \"%s\" is not a number; using the default (%g)\n", key, text, notfound);
         return notfound;
     }
+    if ((value < min) || (value > max)) {
+        fprintf(stderr, "Warning: %s = %.10g is outside %.10g..%.10g; using the default (%g)\n",
+                key, value, min, max, notfound);
+        return notfound;
+    }
     return value;
+}
+
+
+// Reads the NMEA version from the configuration.  UBX-CFG-NMEA's nmeaVersion is one byte, and u-blox defines five values
+// for it: 0x21 (NMEA 2.1), 0x23 (2.3), 0x40 (4.0), 0x41 (4.1, also written 4.10) and 0x4B (4.11).  The configuration may
+// give the version as it is written (2.1, 2.3, 4.0, 4.1, 4.10 or 4.11), or as the decimal digits of that byte (21, 23, 40,
+// 41, 410 or 411).  Anything else is reported (on stderr) and the default is used, rather than sending the receiver a
+// version byte it does not define.
+static int getConfigNMEAVersion(const char *key, int notfound) {
+    const char *text = iniparser_getstring(gpsctlConf, key, NULL);
+    if (text == NULL) return notfound;                               // not in the configuration: the default
+
+    char *end;
+    double value = strtod(text, &end);
+    if ((end == text) || (*end != 0) || !isfinite(value)) {
+        fprintf(stderr, "Warning: %s = \"%s\" is not a number; using the default (0x%02X)\n", key, text, notfound);
+        return notfound;
+    }
+
+    // 4.11 has three digits, not two, so work in hundredths: 2.1 -> 210, 4.1 (or 4.10) -> 410, 4.11 -> 411.  The digits
+    // form is already in that scale once the point is dropped: 21 -> 210, 41 -> 410, 411 -> 411.  Anything outside
+    // 0..999 is not a version at all; keep the conversion (and its cast to int) inside that...
+    int digits = -1;
+    if ((value >= 0.0) && (value < 10.0))
+        digits = (int) (value * 100.0 + 0.5);
+    else if ((value >= 10.0) && (value < 100.0))
+        digits = (int) (value + 0.5) * 10;
+    else if ((value >= 100.0) && (value < 1000.0))
+        digits = (int) (value + 0.5);
+
+    int version;
+    switch (digits) {
+        case 210: version = 0x21; break;                             // NMEA 2.1
+        case 230: version = 0x23; break;                             // NMEA 2.3
+        case 400: version = 0x40; break;                             // NMEA 4.0
+        case 410: version = 0x41; break;                             // NMEA 4.1, also written 4.10
+        case 411: version = 0x4B; break;                             // NMEA 4.11
+        default:
+            fprintf(stderr, "Warning: %s = %s is not 2.1, 2.3, 4.0, 4.1 or 4.11; using the default (0x%02X)\n",
+                    key, text, notfound);
+            return notfound;
+    }
+    return version;
 }
 
 
@@ -852,7 +900,6 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
     // configure the GNSS for GPS, GLONASS, BeiDou, and Galileo, with no SBAS.
     // first read the current configuration...
     int minch, maxch, enabled, beidou_enabled, galileo_enabled, glonass_enabled, gps_enabled, nmeaver;
-    double dnmeaver;
 
     gps_enabled = getConfigBool("gps:enabled", true);
     galileo_enabled = getConfigBool("galileo:enabled", true);
@@ -1037,19 +1084,13 @@ extern slReturn ubxConfigSatellites(int fdPort, int verbosity) {
         }
     }
 
-    // We don't care if NMEA version is 4.0, 40, 4.1, or 41, etc, we do the right thing anyway
-    dnmeaver = getConfigDouble("nmea:version", 41) + 0.005;
-    if (dnmeaver < 20.0) {
-        dnmeaver = dnmeaver * 10.0;
+    // read the NMEA version, checking it against the versions u-blox defines...
+    nmeaver = getConfigNMEAVersion("nmea:version", 0x41);
+    // force nmea version 4.1 (0x41) or higher if BeiDou or Galileo are enabled; 0x4B (4.11) is higher...
+    if ((beidou_enabled || galileo_enabled) && (nmeaver < 0x41)) {
+        nmeaver = 0x41;
     }
-    nmeaver = (int) dnmeaver;
-    // force nmea version 41 or higher if BeiDou or Galileo are enabled
-    if ((beidou_enabled || galileo_enabled) && nmeaver < 41) {
-        nmeaver = 41;
-    }
-    // convert to from integer 40, 41, etc to hex 0x40, 0x41
-    nmeaver = (nmeaver / 10) * 16 + (nmeaver % 10);
-    slReturn nmeaVerResp = ubxConfigNMEAVersion(fdPort, verbosity, nmeaver);
+    slReturn nmeaVerResp = ubxConfigNMEAVersion(fdPort, verbosity, (uint8_t) nmeaver);
     if (isErrorReturn(nmeaVerResp)) {
         if (verbosity >= 1)
             printf("Warning: problem configuring NMEA version: %s\n", getReturnMsg(nmeaVerResp));
@@ -1102,10 +1143,11 @@ extern slReturn ubxConfigTimePulse(int fdPort, int verbosity) {
 }
 
 // Scales a configuration value to the integer the receiver wants, rounding to nearest.  Plain (int) truncation is wrong
-// here: 1.15 * 100.0 is 114.99999999999999, which would be sent as 114.  (Done by hand to avoid needing libm.)
-static int scaleRound(double value, double scale) {
+// here: 1.15 * 100.0 is 114.99999999999999, which would be sent as 114.  (Done by hand to avoid needing libm.)  The
+// result is wide enough for the largest field (fixed altitude variance, a U4 scaled by 10000).
+static long long scaleRound(double value, double scale) {
     double v = value * scale;
-    return (int) ((v < 0.0) ? (v - 0.5) : (v + 0.5));
+    return (long long) ((v < 0.0) ? (v - 0.5) : (v + 0.5));
 }
 
 
@@ -1128,11 +1170,11 @@ extern slReturn ubxConfigNavEngine(int fdPort, int verbosity) {
     put_uint16_slBuffer(b,  0, 0x05F7);  // configure all settings (including DGPS/DGNSS)...
     put_uint8_slBuffer(b,  2, getConfigInt("navigation engine:dynamic model", Stationary, 0, 255));                  // use stationary mode...
     put_uint8_slBuffer(b,  3, getConfigInt("navigation engine:fix mode", Only3D, 0, 255));                         // use any mode...
-    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude (2d)", 0), 100.0));// fixed altitude for 2D (not used)...
-    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude variance (2d)", 0), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
+    put_uint32_slBuffer(b,  4, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude (2d)", 0, -21474836.48, 21474836.47), 100.0));// fixed altitude for 2D (not used)...
+    put_uint32_slBuffer(b,  8, (uint32_t) scaleRound(getConfigDouble("navigation engine:fixed altitude variance (2d)", 0, 0.0, 429496.7295), 10000.0));  // fixed altitude variance for 2D (1 m^2)...
     put_uint8_slBuffer(b, 12, getConfigInt("navigation engine:minimum elevation", 20, -128, 127));                       // minimum elevation is 5 degrees...
-    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(getConfigDouble("navigation engine:position dop mask", 10), 10.0));   // position DoP mask is 10.0...
-    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(getConfigDouble("navigation engine:time dop mask", 10), 10.0));       // time DoP mask is 10.0...
+    put_uint16_slBuffer(b, 14, (uint16_t) scaleRound(getConfigDouble("navigation engine:position dop mask", 10, 0.0, 6553.5), 10.0));   // position DoP mask is 10.0...
+    put_uint16_slBuffer(b, 16, (uint16_t) scaleRound(getConfigDouble("navigation engine:time dop mask", 10, 0.0, 6553.5), 10.0));       // time DoP mask is 10.0...
     put_uint16_slBuffer(b, 18, getConfigInt("navigation engine:position accuracy mask", 40, 0, 65535));               // position accuracy mask is 100 meters...
     put_uint16_slBuffer(b, 20, getConfigInt("navigation engine:time accuracy mask", 40, 0, 65535));                   // time accuracy mask is 300 m...
     put_uint8_slBuffer(b, 22, getConfigInt("navigation engine:static hold threshold", 0, 0, 255));                   // static hold threshold is 0 cm/s...
