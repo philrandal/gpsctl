@@ -1336,7 +1336,9 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     fix->date_valid                        = isBitSet_slBits(get_uint8_slBuffer(body, 11), 0);
     fix->time_valid                        = isBitSet_slBits(get_uint8_slBuffer(body, 11), 1);
     fix->time_resolved                     = isBitSet_slBits(get_uint8_slBuffer(body, 11), 2);
-    fix->fix_is_3d                         = (get_uint8_slBuffer(body, 20) == 3);
+    // fixType 4 is GNSS + dead reckoning, which is still a 3D fix with a valid height...
+    fix->fix_is_3d                         = (get_uint8_slBuffer(body, 20) == 3) ||
+                                             (get_uint8_slBuffer(body, 20) == 4);
     fix->fix_valid                         = isBitSet_slBits(get_uint8_slBuffer(body, 21), 0);
     fix->number_of_satellites_used         = get_uint8_slBuffer(body, 23);
     fix->latitude_deg                      = get_int32_slBuffer(body, 28) * 1e-7;
