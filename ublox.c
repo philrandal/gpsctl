@@ -1718,7 +1718,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->model               = (dynModel) get_uint8_slBuffer(nav5Msg.body,  2);
     config->mode                = (fixMode)  get_uint8_slBuffer(nav5Msg.body,  3);
     config->fixedAltM           = 0.01 *     get_int32_slBuffer(nav5Msg.body,  4);
-    config->fixedAltVarM2       = 0.0001 *   get_int32_slBuffer(nav5Msg.body,  8);
+    config->fixedAltVarM2       = 0.0001 *   get_uint32_slBuffer(nav5Msg.body,  8);
     config->minElevDeg          =            get_int8_slBuffer(nav5Msg.body, 12);
     config->pDoP                = 0.1 *      get_uint16_slBuffer(nav5Msg.body, 14);
     config->tDoP                = 0.1 *      get_uint16_slBuffer(nav5Msg.body, 16);
