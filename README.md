@@ -49,6 +49,11 @@ based on the GPS' notion of time).
 The only dependencies *gpsctl* has (other than the standard C library) is on the JSON library
 [cJSON](https://github.com/DaveGamble/cJSON), and [iniparser](https://github.com/philrandal/iniparser). The source for iniparser and cJSON (which have MIT licenses) are incorporated in this project.  
 
+## Is there a Rust version?
+Yes: [gpsctl-rs](https://github.com/philrandal/gpsctl-rs) is a Rust port with the same options, configuration
+file, output and exit status as this program (it follows release 1.42).  It uses only the Rust standard library,
+and comes with a `build.sh` that builds a 64-bit Raspberry Pi (aarch64) binary.  This C version remains the reference.
+
 ## Why is *gpsctl*'s code so awful?
 Mainly because this is the first C program the author has written in over 30 years, but also because the author
 has serious deficiencies in aptitude, intelligence, and knowledge (not to mention choices of hobbies).
