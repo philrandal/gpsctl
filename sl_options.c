@@ -24,6 +24,7 @@ typedef struct {
 
 struct state_slOptions {
     optionDef_slOptions *optDefs;                   // the option definitions, possibly enhanced
+    int argc;                                       // the number of arguments we were given (including the program name)
     int remainingArgs;                              // the number of arguments we haven't yet processed
     int currentArgIndex;                            // the index of the argument we're currently working on
     procOptionRecord optionRecords[MAX_SL_OPTIONS]; // our list of parsed option records
@@ -62,7 +63,9 @@ extern bool hasLongOption_slOptions( const char *longName, const state_slOptions
 // only meaningful from a constraint-checking function, where the (possibly permuted) argument list is still in place.
 extern const char *firstUnusedArg_slOptions( const state_slOptions *state ) {
 
-    if( state->remainingArgs <= 0 ) return NULL;
+    // option processing has used up remainingArgs by the time we get here: the words it did not recognise have been
+    // permuted to the end, starting at currentArgIndex...
+    if( state->currentArgIndex >= state->argc ) return NULL;
     return state->ourArgv[state->currentArgIndex];
 }
 
@@ -802,6 +805,7 @@ extern slReturn process_slOptions( int argc, const char *const argv[], const psl
     bool haveDebug = (0 != (config->options & SL_OPTIONS_CONFIG_DEBUG));
     state_slOptions state;              // the current state of options processing...
     state.optDefs = optDefs;            // our (possibly enhanced) option definitions...
+    state.argc = argc;                  // how many arguments there are, including the program name...
     state.remainingArgs = argc - 1;     // the number of arguments we haven't yet processed...
     state.currentArgIndex = 1;          // the index of the argument we're currently working on...
     state.numOptionRecords = 0;         // of course we haven't parsed any yet...
