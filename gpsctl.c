@@ -917,6 +917,17 @@ static slReturn  constrainVerbosity(const optionDef_slOptions* defs, const psloC
     return makeOkReturn();
 }
 
+
+// The echo time may not be negative: actionEcho() would compute a deadline in the past, read nothing, and still
+// report success...
+static slReturn  constrainEchoSeconds(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    if (config->clientData->echoSeconds < 0)
+        return makeErrorMsgReturn(ERR_ROOT, "-e, --echo may not be given a negative number of seconds");
+
+    return makeOkReturn();
+}
+
 #define CD (config->clientData)
 #define V0 (CD->verbosity >= 0)
 #define V1 (CD->verbosity >= 1)
@@ -1541,7 +1552,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
     optionDef_slOptions echoDef = {
             1, "echo", 'e', argOptional,                                        // max, long, short, arg
             parseInt, (void*) &clientData->echoSeconds, 0,                      // parser, ptrArg, intArg
-            NULL,                                                               // constrainer
+            constrainEchoSeconds,                                               // constrainer
             actionEcho,                                                         // action
             "seconds",                                                          // argument name
             "echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)"
