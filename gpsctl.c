@@ -131,6 +131,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
     bool inLine = false;
     unsigned char last[3] = {0};
     int cksm = 0;
+    int lineLen = 0;  // characters received since the '$', including the "*HH" checksum...
     long long start = currentTimeMs();
 
     // flush any junk we might have in the receiver buffer...
@@ -153,7 +154,9 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         freeReturn(rscResp);
         if (inLine) {
             if ((c == '\r') || (c == '\n')) {
-                if (last[0] == '*') {
+                // a real sentence has at least a talker and a sentence formatter ("GPGGA", say) before the "*HH";
+                // without that test an empty "$*00" line passes, because its checksum and the "00" are both zero...
+                if ((last[0] == '*') && (lineLen >= 8)) {
                     int un = hex2int(last[1]);
                     if (un >= 0) {
                         int ln = hex2int(last[2]);
@@ -175,6 +178,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
             }
             else {
                 cksm ^= c;
+                lineLen++;
                 last[0] = last[1];
                 last[1] = last[2];
                 last[2] = c;
@@ -183,6 +187,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         else if (c == '$') {
             inLine = true;
             cksm = 0;
+            lineLen = 0;
             last[0] = last[1] = last[2] = 0;  // don't let a very short line reuse the previous line's "*XX" tail...
         }
     }
