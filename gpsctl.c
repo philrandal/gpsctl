@@ -855,6 +855,19 @@ static slReturn parseCount(void* ptrArg, int intArg, const optionDef_slOptions* 
 #undef CD
 
 
+// gpsctl takes no positional arguments, so any word left over after option processing means the command line was not
+// understood.  Ignoring it silently made a mistyped command do nothing at all, and made "-e 5" (the optional argument
+// must be attached: "-e5" or "--echo=5") run the echo without its argument, which means forever...
+static slReturn  constrainNoExtras(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    const char* extra = firstUnusedArg_slOptions(state);
+    if (extra != NULL)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected command-line argument \"%s\"", extra);
+
+    return makeOkReturn();
+}
+
+
 // Sync may only be specified if auto baud rate was NOT specified...
 static slReturn  constrainSync(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
 
@@ -1785,7 +1798,7 @@ int main(int argc, char *argv[]) {
     psloConfig config = {
             getOptionDefs(&clientData),                         // our command-line option definitions...
             &clientData,                                        // our options processing data structure...
-            NULL, NULL,                                         // before, after constraint-checking functions...
+            constrainNoExtras, NULL,                            // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
             GPSCTL_VER,                                         // version of gpsctl...

@@ -68,6 +68,7 @@ struct psloConfig {
 
 bool hasShortOption_slOptions( char, const state_slOptions* );
 bool hasLongOption_slOptions( const char*, const state_slOptions* );
+const char* firstUnusedArg_slOptions( const state_slOptions* );
 char* getName_slOptions( const optionDef_slOptions* );
 
 slReturn process_slOptions( int argc, const char *const argv[], const psloConfig* config );
