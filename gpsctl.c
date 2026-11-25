@@ -55,7 +55,6 @@
 #include <string.h>
 #include <fcntl.h>
 #include <unistd.h>
-// #include <wiringPi.h>
 #include <math.h>
 #include "sl_return.h"
 #include "sl_options.h"
@@ -912,58 +911,6 @@ static slReturn  constrainVerbosity(const optionDef_slOptions* defs, const psloC
 #define V3 (CD->verbosity >= 3)
 
 
-/* remove PPS signal test as wiringPi is now deprecates
-// Test for the presence and quality of a 1 Hz signal on GPIO 18 (the PPS signal from the GPS), printing the result.
-#define PPS_PIN 1
-static slReturn actionTestPPS(const optionDef_slOptions* defs, const psloConfig* config) {
-
-    wiringPiSetup();
-    pinMode(PPS_PIN, INPUT);
-
-    struct timespec tenmicro = { 0, 10000 };
-
-    struct timespec lastTime = { 0, 0 };
-
-    // measure for about 10 seconds...
-    int lastState = 0;
-    for (int i = 0; i < 100000; i++) {
-
-        // wait 10 microseconds
-        nanosleep(&tenmicro, NULL);
-
-        // check our state...
-        int state = digitalRead(PPS_PIN);
-
-        // if the state has changed, time to measure and report...
-        if (state != lastState) {
-
-            // get the current time...
-            struct timespec thisTime;
-            int result = clock_gettime(CLOCK_MONOTONIC, &thisTime);
-            if (result != 0)
-                return makeErrorFmtMsgReturn(ERR_ROOT, "problem reading CPU clock: %s", strerror(errno));
-
-            // if this isn't our first measurement...
-            if ((lastTime.tv_sec != 0) || (lastTime.tv_nsec != 0)) {
-
-                // figure out how long we were in this state...
-                long long nanos = thisTime.tv_nsec - lastTime.tv_nsec;
-                if (nanos < 0) nanos += 1000000000;
-                double secs = 1.0 * nanos / 1000000000.0;
-
-                // tell our results...
-                char* signal = (lastState == 0) ? " low" : "high";
-                printf("PPS was %s for %.3f seconds\n", signal, secs);
-            }
-            lastTime = thisTime;
-            lastState = state;
-        }
-    }
-
-    return makeOkReturn();
-}
-*/
-
 // Passive synchronizer for the first autobaud pass: listens, sending nothing, for a valid NMEA sentence.  It is given
 // at most PASSIVE_LISTEN_MS (a receiver with NMEA on sends something every second or so), however long autoBaudRate()
 // would allow, so a silent receiver doesn't make the pass slow.
@@ -1729,16 +1676,6 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             "restore the GPS to its factory defaults, erasing its saved configuration; the GPS goes back to 9600 baud"
     };
 
-    /* remove as wiringPi now deprecated
-    optionDef_slOptions testPpsDef = {
-            1, "test", 0, argNone,                                              // max, long, short, arg
-            NULL, NULL, 0,                                                      // parser, ptrArg, intArg
-            NULL,                                                               // constrainer
-            actionTestPPS,                                                      // action
-            NULL,                                                               // argument name
-            "test the GPS' PPS signal"
-    };
-    */
     optionDef_slOptions configureForTimingDef = {
             1, "configure_for_timing", 0, argNone,                              // max, long, short, arg
             NULL, NULL, 0,                                                      // parser, ptrArg, intArg
@@ -1777,7 +1714,6 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             autobaudDef,
             baudDef,
             minBaudDef,
-//            testPpsDef,
 
             // all the above MUST come before those below, or port won't be initialized correctly...
             syncDef,
