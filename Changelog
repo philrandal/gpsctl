@@ -1,3 +1,6 @@
+Unreleased - Phil Randal, Claude
+    Fix the unexpected-argument check: it never fired
+
 2026-11-25 - Phil Randal, DeepSeek and Claude - Release 1.42
     A Rust port of gpsctl now exists: https://github.com/philrandal/gpsctl-rs (it follows release 1.42 of this program).
         README.md points to it.
