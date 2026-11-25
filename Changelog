@@ -1,4 +1,9 @@
-Unreleased - Phil Randal, Claude
+Unreleased - Phil Randal, DeepSeek, Claude
+    $*00 can declare false NMEA sync
+    fixedAltVarM2 decoded as signed
+    Negative --echo seconds accepted
+    fix_is_3d excludes fixType 4
+    Unconsumed command-line words are silently ignored
     Fix the unexpected-argument check: it never fired
 
 2026-11-25 - Phil Randal, DeepSeek and Claude - Release 1.42
@@ -60,8 +65,8 @@ Unreleased - Phil Randal, Claude
     Synchronizer wait: longer wait in the autobaud sync at slow baud rates.
     Poll and ACK waits: the same extra allowance for every poll and ACK wait.
     Config values: strict decimal reading, with the units in the shipped configs moved into comments.
-      NOTE: this breaks existing configs - please adjust your gpsctl.conf to put comment symbols 
-          after numeric values
+        NOTE: this breaks existing configs - please adjust your gpsctl.conf to put comment symbols 
+            after numeric values
 
 2026-11-20 - Phil Randal and Claude - Release 1.38
     Refuse a shared serial port and cross-check autobaud
