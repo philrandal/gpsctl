@@ -1336,7 +1336,9 @@ extern slReturn ubxGetFix(int fdPort, int verbosity, ubxFix* fix) {
     fix->date_valid                        = isBitSet_slBits(get_uint8_slBuffer(body, 11), 0);
     fix->time_valid                        = isBitSet_slBits(get_uint8_slBuffer(body, 11), 1);
     fix->time_resolved                     = isBitSet_slBits(get_uint8_slBuffer(body, 11), 2);
-    fix->fix_is_3d                         = (get_uint8_slBuffer(body, 20) == 3);
+    // fixType 4 is GNSS + dead reckoning, which is still a 3D fix with a valid height...
+    fix->fix_is_3d                         = (get_uint8_slBuffer(body, 20) == 3) ||
+                                             (get_uint8_slBuffer(body, 20) == 4);
     fix->fix_valid                         = isBitSet_slBits(get_uint8_slBuffer(body, 21), 0);
     fix->number_of_satellites_used         = get_uint8_slBuffer(body, 23);
     fix->latitude_deg                      = get_int32_slBuffer(body, 28) * 1e-7;
@@ -1716,7 +1718,7 @@ extern slReturn ubxGetConfig(int fdPort, int verbosity, ubxConfig* config) {
     config->model               = (dynModel) get_uint8_slBuffer(nav5Msg.body,  2);
     config->mode                = (fixMode)  get_uint8_slBuffer(nav5Msg.body,  3);
     config->fixedAltM           = 0.01 *     get_int32_slBuffer(nav5Msg.body,  4);
-    config->fixedAltVarM2       = 0.0001 *   get_int32_slBuffer(nav5Msg.body,  8);
+    config->fixedAltVarM2       = 0.0001 *   get_uint32_slBuffer(nav5Msg.body,  8);
     config->minElevDeg          =            get_int8_slBuffer(nav5Msg.body, 12);
     config->pDoP                = 0.1 *      get_uint16_slBuffer(nav5Msg.body, 14);
     config->tDoP                = 0.1 *      get_uint16_slBuffer(nav5Msg.body, 16);

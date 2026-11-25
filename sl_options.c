@@ -58,6 +58,15 @@ extern bool hasLongOption_slOptions( const char *longName, const state_slOptions
 }
 
 
+// Returns the first command-line argument that option processing did not consume, or NULL if there is none.  This is
+// only meaningful from a constraint-checking function, where the (possibly permuted) argument list is still in place.
+extern const char *firstUnusedArg_slOptions( const state_slOptions *state ) {
+
+    if( state->remainingArgs <= 0 ) return NULL;
+    return state->ourArgv[state->currentArgIndex];
+}
+
+
 // Returns a string identifying the option in the given optionDef_slOptions record.  The string may be of the form
 // "-l", "--long", or "-l, --long" depending on whether the short, long, or both option names are defined.  The string
 // returned has been allocated and should be deleted when no longer needed.

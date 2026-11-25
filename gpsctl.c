@@ -131,6 +131,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
     bool inLine = false;
     unsigned char last[3] = {0};
     int cksm = 0;
+    int lineLen = 0;  // characters received since the '$', including the "*HH" checksum...
     long long start = currentTimeMs();
 
     // flush any junk we might have in the receiver buffer...
@@ -153,7 +154,9 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         freeReturn(rscResp);
         if (inLine) {
             if ((c == '\r') || (c == '\n')) {
-                if (last[0] == '*') {
+                // a real sentence has at least a talker and a sentence formatter ("GPGGA", say) before the "*HH";
+                // without that test an empty "$*00" line passes, because its checksum and the "00" are both zero...
+                if ((last[0] == '*') && (lineLen >= 8)) {
                     int un = hex2int(last[1]);
                     if (un >= 0) {
                         int ln = hex2int(last[2]);
@@ -175,6 +178,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
             }
             else {
                 cksm ^= c;
+                lineLen++;
                 last[0] = last[1];
                 last[1] = last[2];
                 last[2] = c;
@@ -183,6 +187,7 @@ static slReturn nmeaBaudRateSynchronizer(int fdPort, int maxTimeMs, int verbosit
         else if (c == '$') {
             inLine = true;
             cksm = 0;
+            lineLen = 0;
             last[0] = last[1] = last[2] = 0;  // don't let a very short line reuse the previous line's "*XX" tail...
         }
     }
@@ -855,6 +860,19 @@ static slReturn parseCount(void* ptrArg, int intArg, const optionDef_slOptions* 
 #undef CD
 
 
+// gpsctl takes no positional arguments, so any word left over after option processing means the command line was not
+// understood.  Ignoring it silently made a mistyped command do nothing at all, and made "-e 5" (the optional argument
+// must be attached: "-e5" or "--echo=5") run the echo without its argument, which means forever...
+static slReturn  constrainNoExtras(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    const char* extra = firstUnusedArg_slOptions(state);
+    if (extra != NULL)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "unexpected command-line argument \"%s\"", extra);
+
+    return makeOkReturn();
+}
+
+
 // Sync may only be specified if auto baud rate was NOT specified...
 static slReturn  constrainSync(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
 
@@ -900,6 +918,17 @@ static slReturn  constrainVerbosity(const optionDef_slOptions* defs, const psloC
 
     if (hasShortOption_slOptions('q', state))
         return makeErrorMsgReturn(ERR_ROOT, "-v, --verbosity d may only be specified if -q, --quiet is NOT specified");
+
+    return makeOkReturn();
+}
+
+
+// The echo time may not be negative: actionEcho() would compute a deadline in the past, read nothing, and still
+// report success...
+static slReturn  constrainEchoSeconds(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    if (config->clientData->echoSeconds < 0)
+        return makeErrorMsgReturn(ERR_ROOT, "-e, --echo may not be given a negative number of seconds");
 
     return makeOkReturn();
 }
@@ -1528,7 +1557,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
     optionDef_slOptions echoDef = {
             1, "echo", 'e', argOptional,                                        // max, long, short, arg
             parseInt, (void*) &clientData->echoSeconds, 0,                      // parser, ptrArg, intArg
-            NULL,                                                               // constrainer
+            constrainEchoSeconds,                                               // constrainer
             actionEcho,                                                         // action
             "seconds",                                                          // argument name
             "echo human-readable GPS data to stdout for the given time (0 or unspecified means forever)"
@@ -1785,7 +1814,7 @@ int main(int argc, char *argv[]) {
     psloConfig config = {
             getOptionDefs(&clientData),                         // our command-line option definitions...
             &clientData,                                        // our options processing data structure...
-            NULL, NULL,                                         // before, after constraint-checking functions...
+            constrainNoExtras, NULL,                            // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
             GPSCTL_VER,                                         // version of gpsctl...
