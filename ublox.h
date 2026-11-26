@@ -221,6 +221,12 @@ char* getSatelliteHealth( satelliteHealth health );
 char* getOrbitSource( orbitSource source );
 
 slReturn ubxGetVersion( int fdPort, int verbosity, ubxVersion* version );
+
+// Returns the major protocol version in a receiver's MON-VER extensions ("PROTVER=18.00" gives 18), or -1 if there is none...
+int ubxProtocolMajor(const ubxVersion* version);
+
+// u-blox 8 receivers report protocol versions up to 23; anything higher is a newer generation that gpsctl was not written for...
+#define UBX_LAST_M8_PROTOCOL_MAJOR 23
 slReturn ubxGetSatellites( int fdPort, int verbosity, ubxSatellites* satellites );
 slReturn ubxSaveConfig( int fdPort, int verbosity );
 slReturn ubxGetFix( int fdPort, int verbosity, ubxFix* fix );

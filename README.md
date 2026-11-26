@@ -10,6 +10,14 @@ of *gpsctl*'s functions are generic for any GPS that streams NMEA data to a Linu
 these should work on any Linux system.  Most of *gpsctl*'s functions, however, are quite specific
 to the U-Blox products, and use their proprietary UBX protocol (again, on a serial port).
 
+### Which receivers?
+*gpsctl* is written and tested for the u-blox 8 (M8) generation, which reports a UBX protocol version up to 23
+(the author's module reports 18).  Newer generations (u-blox 9 and later, protocol 27 and up) are configured with a
+different, key-based interface that *gpsctl* does not use, so some of its settings may not apply to them.  If a
+newer receiver is detected, *gpsctl* says so on stderr before it queries the version or changes the satellites or
+timing configuration, and carries on.  The restriction on using BeiDou and GLONASS together (see the configuration
+file section below) is a limit of the M8, not of newer receivers; *gpsctl* does not yet know how to lift it for them.
+
 ## Why does the world need gpsctl?
 Well, probably the world doesn't actually need *gpsctl* - but if you happen to be attempting the same
 thing the author was, you might find it useful.  Configuring and controlling a U-Blox GPS connected to a
