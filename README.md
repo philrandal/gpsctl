@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 1.42</b></h1>
+<h1 align="center"><b>gpsctl 2.00</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
@@ -51,7 +51,7 @@ The only dependencies *gpsctl* has (other than the standard C library) is on the
 
 ## Is there a Rust version?
 Yes: [gpsctl-rs](https://github.com/philrandal/gpsctl-rs) is a Rust port with the same options, configuration
-file, output and exit status as this program (it follows release 1.42).  It uses only the Rust standard library,
+file, output and exit status as this program (it follows release 2.00).  It uses only the Rust standard library,
 and comes with a `build.sh` that builds a 64-bit Raspberry Pi (aarch64) binary.  This C version remains the reference.
 
 ## Why is *gpsctl*'s code so awful?
