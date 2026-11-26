@@ -312,6 +312,37 @@ static void freeVersionInfo(ubxVersion* version) {
 }
 
 
+// Warns (once per run) if the receiver reports a protocol version newer than any u-blox 8, since gpsctl was written and
+// tested for the M8 and newer receivers use a different configuration interface.  Best effort: if the receiver
+// doesn't answer, or has no protocol version, nothing is said...
+static void warnIfNotM8(const clientData_slOptions* cd, const ubxVersion* known) {
+    static bool warned = false;
+    if (warned) return;
+
+    int major;
+    if (known != NULL)
+        major = ubxProtocolMajor(known);
+    else {
+        ubxVersion version = {0};
+        slReturn result = ubxGetVersion(cd->fdPort, 0, &version);
+        if (isErrorReturn(result)) {
+            freeReturn(result);
+            return;
+        }
+        freeReturn(result);
+        major = ubxProtocolMajor(&version);
+        freeVersionInfo(&version);
+    }
+
+    if (major > UBX_LAST_M8_PROTOCOL_MAJOR) {
+        warned = true;
+        fprintf(stderr, "Warning: this receiver reports protocol version %d, which is newer than any u-blox 8 (up to %d).\n"
+                        "         gpsctl is written and tested for the u-blox 8, so some settings may not apply to it\n"
+                        "         (u-blox 9 and later receivers use a different configuration interface).\n",
+                major, UBX_LAST_M8_PROTOCOL_MAJOR);
+    }
+}
+
 // Outputs a version query, in English or JSON.
 static slReturn doVersionQuery(const clientData_slOptions* clientData) {
 
@@ -320,6 +351,7 @@ static slReturn doVersionQuery(const clientData_slOptions* clientData) {
     if (isErrorReturn(result))
         return makeErrorMsgReturn(ERR_CAUSE(result), "Problem obtaining version information from GPS");
     freeReturn(result);
+    warnIfNotM8(clientData, &version);
 
     if (clientData->json) {
 
@@ -1317,6 +1349,9 @@ static slReturn actionConfigForTiming(const optionDef_slOptions* defs, const psl
         return usResp;
     freeReturn(usResp);
 
+    // warn if this isn't a receiver we know...
+    warnIfNotM8(cd, NULL);
+
     // configure the GPS...
     slReturn ucftResp = ubxConfigForTiming(cd->fdPort, cd->verbosity);
     if (isErrorReturn(ucftResp))
@@ -1336,6 +1371,9 @@ static slReturn actionConfigSatellites(const optionDef_slOptions* defs, const ps
     if (isErrorReturn(usResp))
         return usResp;
     freeReturn(usResp);
+
+    // warn if this isn't a receiver we know...
+    warnIfNotM8(cd, NULL);
 
     // configure the GPS...
     slReturn ucftResp = ubxConfigSatellites(cd->fdPort, cd->verbosity);

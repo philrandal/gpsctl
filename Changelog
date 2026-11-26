@@ -1,3 +1,9 @@
+Unreleased - Phil Randal and Claude
+    A warning on stderr when the receiver reports a UBX protocol version newer than any u-blox 8 (above 23): gpsctl is
+        written and tested for the M8, so some settings may not apply to u-blox 9 and later receivers.  Given before a
+        version query and before --satellites, --galileo and --configure_for_timing; the run carries on.
+    README says which receivers gpsctl is written for
+
 2026-11-26 - Phil Randal, DeepSeek and Claude - Release 2.00
     $*00 can declare false NMEA sync
     fixedAltVarM2 decoded as signed

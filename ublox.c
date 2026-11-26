@@ -1377,6 +1377,20 @@ static char* copyBodyString(const char* body, size_t bodySize, size_t offset, si
 }
 
 
+// Returns the major protocol version in a receiver's MON-VER extensions ("PROTVER=18.00" gives 18), or -1 if there is none...
+extern int ubxProtocolMajor(const ubxVersion* version) {
+    if (version == NULL || version->extensions == NULL) return -1;
+    for (char** ext = version->extensions; *ext != NULL; ext++) {
+        const char* p = strstr(*ext, "PROTVER");
+        if (p == NULL) continue;
+        p += strlen("PROTVER");
+        while (*p == '=' || *p == ' ') p++;
+        if (*p < '0' || *p > '9') continue;
+        return (int) strtol(p, NULL, 10);
+    }
+    return -1;
+}
+
 // Fills the ubxVersion structure at the given pointer with information about the GPS's version.
 extern slReturn ubxGetVersion(int fdPort, int verbosity, ubxVersion* version) {
 
