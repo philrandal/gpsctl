@@ -1,6 +1,7 @@
 [Unit]
 Description=u-blox initialisation
 Before=gpsd.service
+Before=chrony.service
 Before=ntp.service
 After=network-online.target
 Wants=network-online.target
