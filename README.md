@@ -90,6 +90,49 @@ You can also blame Claude and DeepSeek for making things better or worse, if you
 > TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 > SOFTWARE.
 
+## A stratum 1 server with chrony and gpsd
+`etc/` holds a working set of files for a Raspberry Pi stratum 1 NTP server: a u-blox M8 on `/dev/ttyAMA0` with its
+PPS signal on `/dev/pps0`, gpsd reading both, and chrony as the time daemon.  They have been run on a Raspberry Pi 3B
+with Raspberry Pi OS (NetworkManager); other setups may need adjusting.
+
+| file | install to | what it does |
+|---|---|---|
+| `etc/systemd/system/ublox-init.service` | `/etc/systemd/system/` | runs gpsctl at boot, before chrony and gpsd, with options from `/etc/default/gpsctl` |
+| `etc/systemd/system/chrony.service.d/wait-for-network.conf` | `/etc/systemd/system/chrony.service.d/` | starts chrony after `network-online.target` |
+| `etc/systemd/system/gpsd.service.d/override.conf` | `/etc/systemd/system/gpsd.service.d/` | starts gpsd after chrony |
+| `etc/systemd/system/ntp-hw-tune.service` | `/etc/systemd/system/` | sets the CPU governor to `performance` and turns EEE off on `eth0` (ignored where EEE is unsupported, e.g. the Pi 3B) |
+| `etc/chrony/chrony.conf` | `/etc/chrony/chrony.conf` | chrony configuration for the GPS and PPS sources |
+
+Boot order is `ublox-init`, then `chrony`, then `gpsd`.  gpsd must start after chrony because it connects to the SOCK
+refclock sockets that chrony creates.  `After=network-online.target` only waits if a wait-online service is
+enabled (`NetworkManager-wait-online` on Raspberry Pi OS, or `systemd-networkd-wait-online`).
+
+To install:
+
+    sudo cp etc/systemd/system/*.service /etc/systemd/system/
+    sudo cp -r etc/systemd/system/*.service.d /etc/systemd/system/
+    sudo cp etc/chrony/chrony.conf /etc/chrony/chrony.conf
+    sudo systemctl daemon-reload
+    sudo systemctl enable ublox-init ntp-hw-tune
+    sudo reboot
+
+`ntp-hw-tune` needs `ethtool` installed.  `gpsd` itself is configured in `/etc/default/gpsd`; the author runs it with
+`--nowait --badtime --readonly --speed 115200 /dev/ttyAMA0 /dev/pps0`.
+
+### How `chrony.conf` is arranged
+* Two gpsd refclocks: the NMEA time over `/var/run/chrony.clk.ttyAMA0.sock` (`refid GPS`, `noselect`) only gives the
+  second; the PPS edge over `/var/run/chrony.pps0.sock` (`refid PPS`, `lock GPS`, `prefer`) gives the precision.
+* Network servers stay in the configuration as a cross-check.  `trust` is deliberately not set on the PPS source:
+  with it, chrony excludes the network servers (they show as `^?`) instead of just not combining them (`^-`).
+* `local stratum 10` keeps the server answering if neither GPS nor network is available.
+* `leapseclist /usr/share/zoneinfo/leap-seconds.list` supplies leap seconds.  `leapsectz right/UTC` is not used
+  because chrony rejected that zone on Raspberry Pi OS ("failed leap second check").  The list comes with the
+  `tzdata` package, so normal upgrades keep it current.
+* `hwtimestamp`, `lock_all` and `sched_priority 10` reduce timing jitter on a lightly loaded machine.
+
+A healthy `chronyc sources` shows the PPS source selected (`#*`) with an offset of a few hundred nanoseconds or
+less, and the network servers as `^-`.
+
 ## Usage
 
     Options for gpsctl:
