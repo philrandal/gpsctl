@@ -1,4 +1,9 @@
-Unreleased - Phil Randal and Claude
+2026-11-28 - Phil Randal and Claude - Release 2.1.0
+    Version numbers now follow semantic versioning (MAJOR.MINOR.PATCH): 2.1.0 follows 2.00 (= 2.0.0) and adds compatible
+        features only (below)
+    Example chrony.conf, systemd units and drop-ins for a stratum 1 server (ublox-init before chrony before gpsd, a
+        network-online wait for chrony, ntp-hw-tune) under etc/, with a README section describing them and the tested
+        boot order.  chrony.conf uses leapseclist instead of leapsectz right/UTC, which chrony rejected on Raspberry Pi OS
     A warning on stderr when the receiver reports a UBX protocol version newer than any u-blox 8 (above 23): gpsctl is
         written and tested for the M8, so some settings may not apply to u-blox 9 and later receivers.  Given before a
         version query and before --satellites, --galileo and --configure_for_timing; the run carries on.
