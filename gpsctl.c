@@ -34,7 +34,7 @@
  *
  * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * */
 
-#define GPSCTL_VER "2.00"
+#define GPSCTL_VER "2.1.0"
 
 // TODO: make sure we free any allocated slBuffers!
 // TODO: add needed printfs for verbose mode...

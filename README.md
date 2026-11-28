@@ -1,4 +1,4 @@
-<h1 align="center"><b>gpsctl 2.00</b></h1>
+<h1 align="center"><b>gpsctl 2.1.0</b></h1>
 
 ## What is gpsctl?
 *gpsctl* is a utility program written for Raspberry Pi computers using a U-Blox GPS board.  The
@@ -59,7 +59,7 @@ The only dependencies *gpsctl* has (other than the standard C library) is on the
 
 ## Is there a Rust version?
 Yes: [gpsctl-rs](https://github.com/philrandal/gpsctl-rs) is a Rust port with the same options, configuration
-file, output and exit status as this program (it follows release 2.00).  It uses only the Rust standard library,
+file, output and exit status as this program (it follows release 2.1.0).  It uses only the Rust standard library,
 and comes with a `build.sh` that builds a 64-bit Raspberry Pi (aarch64) binary.  This C version remains the reference.
 
 ## Why is *gpsctl*'s code so awful?
@@ -328,6 +328,13 @@ To view the current u-blox config
     Locked pulse period = 1000000 ; microseconds
     Locked pulse length = 500000 ; microseconds
     User configurable delay = 0
+
+## Version numbers
+From release 2.1.0, *gpsctl* uses [semantic versioning](https://semver.org/), `MAJOR.MINOR.PATCH`: the major number
+changes when options, configuration settings, output or exit status change in a way that could break existing use, the
+minor number when something is added in a compatible way (a new option or setting, say), and the patch number for bug
+fixes only.  Earlier releases (up to 2.00) used two-part numbers; 2.00 corresponds to 2.0.0.  The Rust port
+([gpsctl-rs](https://github.com/philrandal/gpsctl-rs)) uses the same number as the C release it matches.
 
 ## Why did you fork it, Phil?
 
