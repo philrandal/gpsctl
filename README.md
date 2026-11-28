@@ -147,9 +147,10 @@ less, and the network servers as `^-`.
         --shared_port           allow use of a serial port that another process has open
     -a, --autobaud[=method]     infer baud rate using ascii, nmea, ubx data (default is ubx)
     -b, --baud <baud rate>      specify different host baud rate; any standard rate is allowed
-    -M, --minbaud <baud rate>   specify minimum baud rate for autobaud (default is '9600'); any standard rate is allowed
+    -M, --minbaud <baud rate>   specify minimum baud rate for autobaud (default is '9600', or "autobaud minimum" in gpsctl.conf); any standard rate is allowed
+    -X, --maxbaud <baud rate>   specify maximum baud rate for autobaud (default is '921600', or "autobaud maximum" in gpsctl.conf); any standard rate is allowed
     -s, --sync[=method]         synchronize using ascii, nmea, ubx data (default is ubx)
-    -B, --newbaud <baud rate>   change the U-Blox and host baud rates to the specified standard rate
+    -B, --newbaud <baud rate>   change the U-Blox and host baud rates to the specified standard rate (with -a, that rate is also tried first)
     -n, --nmea <yes/no>         configure whether the GPS sends NMEA data to the serial port (see "Yes or no values" below)
     -Q, --query <query type>    query the GPS for info (see "Query types" below)
         --galileo               configure the GPS for Galileo Satellites
@@ -185,6 +186,17 @@ less, and the network servers as `^-`.
     Environment:
       GPSCTL_TRACE=1  prints every byte sent to and received from the serial port, with times, to stderr
                       (for finding out what really happens on the port; unset or 0 turns it off)
+
+### Autobaud
+With `-a`, *gpsctl* works out the receiver's baud rate by trying the standard rates from the maximum down to the
+minimum (921600 down to 9600 unless told otherwise).  Each rate costs about 1.5 seconds when the receiver is sending
+NMEA, and more when it is not, so narrowing the range or saying where to look first saves time at every start-up:
+* `-B <rate>` together with `-a`: that rate is tried first, so a receiver that is already there is found at once.
+  The usual boot-time `-a -B 115200` finds a receiver at 115200 in about a second instead of about five.  If it is
+  not there, the rest of the range is tried as normal (`-B` still changes the receiver to that rate afterwards).
+* `-M, --minbaud` and `-X, --maxbaud` set the lowest and highest rate tried.  The defaults can be set in the
+  `[gpsctl]` section of `gpsctl.conf` as `autobaud minimum` and `autobaud maximum`; the command line overrides the file.
+  A minimum above the maximum is an error.  A `-B` rate outside the range is still tried first.
 
 ## Examples
 To autodetect the current baud rate, set the pi and u-blox module to 115200 baud, configure stationary mode, Galileo satellites, and NMEA ZDA output only, and to see what it's doing
@@ -229,6 +241,9 @@ To view the current u-blox config
     # sync method: ASCII = 1, NMEA = 2, UBX = 3
     sync method = 3
     verbosity = 0
+    # the range of baud rates that -a (autobaud) tries; -M and -X on the command line override these
+    autobaud minimum = 9600
+    autobaud maximum = 921600
     # Only one of Beidou and GLONASS can be used at the same time
     # so rather than error out trying to enable both
     # choose which one to use

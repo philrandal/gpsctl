@@ -6,6 +6,9 @@ port = /dev/ttyAMA0
 # sync method: ASCII = 1, NMEA = 2, UBX = 3
 sync method = 3
 verbosity = 0
+# the range of baud rates that -a (autobaud) tries; -M and -X on the command line override these
+autobaud minimum = 9600
+autobaud maximum = 921600
 # Only one of Beidou and GLONASS can be used at the same time
 # so rather than error out trying to enable both
 # choose which one to use

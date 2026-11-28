@@ -19,7 +19,9 @@ typedef struct speedInfo {
 
 int getBaudRateCookie( int baudRate );
 slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbosity );
-slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer synchronizer, int verbosity );
+// Tries firstBaud first (if it is above 0, and whether or not it is within the range), then the standard rates from maxBaud
+// down to minBaud...
+slReturn autoBaudRate( int fdPort, int minBaud, int maxBaud, int firstBaud, baudRateSynchronizer synchronizer, int verbosity );
 slReturn getSpeedInfo( int fdPort, speedInfo* );
 slReturn verifySerialDevice( const char *deviceName );
 slReturn checkSerialPortNotShared( const char *deviceName );

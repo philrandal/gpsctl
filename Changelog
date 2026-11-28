@@ -3,6 +3,11 @@ Unreleased - Phil Randal and Claude
         written and tested for the M8, so some settings may not apply to u-blox 9 and later receivers.  Given before a
         version query and before --satellites, --galileo and --configure_for_timing; the run carries on.
     README says which receivers gpsctl is written for
+    Autobaud can be told where to look.  With -a, the -B rate is tried first (the usual boot-time "-a -B 115200" finds a
+        receiver at 115200 in about a second instead of about five, as the three fastest rates are no longer listened to
+        first).  New option -X, --maxbaud, the counterpart of -M, --minbaud, and new gpsctl.conf settings "autobaud
+        minimum" and "autobaud maximum" in [gpsctl] (defaults 9600 and 921600) which the command line overrides.  A minimum
+        above the maximum is an error.  etc/default/gpsctl shows the options.
 
 2026-11-26 - Phil Randal, DeepSeek and Claude - Release 2.00
     $*00 can declare false NMEA sync

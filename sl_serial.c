@@ -523,27 +523,42 @@ extern slReturn asciiBaudRateSynchronizer( int fdPort, int maxTimeMs, int verbos
 // with the highest (921600) and working down to the given minimum baud rate.  If it finds a baud rate that
 // synchronizes using the given synchronizer, it stops and returns Ok with that baud rate as additional info, leaving
 // the host's port set to that baud rate.  If if fails to find a baud rate, returns an error.
-extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer synchronizer, int verbosity ) {
+extern slReturn autoBaudRate( int fdPort, int minBaud, int maxBaud, int firstBaud, baudRateSynchronizer synchronizer, int verbosity ) {
 
     int bauds[] = { 921600, 460800, 230400, 115200, 57600, 38400, 19200, 9600, 4800, 2400,
                     1800, 1200, 600, 300, 200, 150, 134, 110, 75, 50   };
 
     // at low verbosity only the root message is printed, and it doesn't say which rates were tried, so say it
     // here - this is the only place that can...
-    if( verbosity >= 1 ) printf( "Trying baud rates from 921600 to %d...\n", minBaud );
+    if( verbosity >= 1 ) {
+        if( firstBaud <= 0 )
+            printf( "Trying baud rates from %d to %d...\n", maxBaud, minBaud );
+        else if( (firstBaud <= maxBaud) && (firstBaud >= minBaud) )
+            printf( "Trying %d baud first, then baud rates from %d to %d...\n", firstBaud, maxBaud, minBaud );
+        else
+            printf( "Trying %d baud first (outside that range), then baud rates from %d to %d...\n", firstBaud, maxBaud, minBaud );
+    }
 
-    for( size_t i = 0; (i < ARRAY_SIZE( bauds ) ) && (bauds[i] >= minBaud); i++ ) {
+    // the order to try: the expected rate first (if there is one), then the rest of the range from the top...
+    int order[ARRAY_SIZE( bauds ) + 1];
+    size_t nOrder = 0;
+    if( firstBaud > 0 ) order[nOrder++] = firstBaud;
+    for( size_t i = 0; i < ARRAY_SIZE( bauds ); i++ )
+        if( (bauds[i] <= maxBaud) && (bauds[i] >= minBaud) && (bauds[i] != firstBaud) )
+            order[nOrder++] = bauds[i];
 
-        if( verbosity >= 2 ) printf( "Trying %d baud...\n", bauds[i] );
+    for( size_t i = 0; i < nOrder; i++ ) {
+
+        if( verbosity >= 2 ) printf( "Trying %d baud...\n", order[i] );
 
         // set the baud rate for the current attempt...
-        slReturn stobResp = setTermOptionsBaud( fdPort, bauds[i] );
+        slReturn stobResp = setTermOptionsBaud( fdPort, order[i] );
         if( isErrorReturn( stobResp ) )
-            return makeErrorFmtMsgReturn( ERR_CAUSE( stobResp ), "problem trying to set baud rate to %d", bauds[i] );
+            return makeErrorFmtMsgReturn( ERR_CAUSE( stobResp ), "problem trying to set baud rate to %d", order[i] );
         freeReturn( stobResp );
         slReturn wqResp = waitForQuietLine( fdPort, QUIET_LINE_MS, QUIET_LINE_MAX_MS );
         if( isErrorReturn( wqResp ) )
-            return makeErrorFmtMsgReturn( ERR_CAUSE( wqResp ), "problem waiting for the line to go quiet at %d baud", bauds[i] );
+            return makeErrorFmtMsgReturn( ERR_CAUSE( wqResp ), "problem waiting for the line to go quiet at %d baud", order[i] );
         freeReturn( wqResp );
 
         // Now that the port is at the rate we are about to try, work out how long to give the synchronizer: 250
@@ -566,12 +581,12 @@ extern slReturn autoBaudRate( int fdPort, int minBaud, baudRateSynchronizer sync
         bool synchronized = getReturnInfoBool( syncResp );
         freeReturn( syncResp );
         if( synchronized ) {
-            if( verbosity >= 1 ) printf( "Synchronized on %d baud...\n", bauds[i] );
-            return makeOkInfoReturn(int2info( bauds[i] ));
+            if( verbosity >= 1 ) printf( "Synchronized on %d baud...\n", order[i] );
+            return makeOkInfoReturn(int2info( order[i] ));
         }
     }
 
-    return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from 921600 to %d", minBaud );
+    return makeErrorFmtMsgReturn( ERR_ROOT, "could not synchronize at any baud rate from %d to %d", maxBaud, minBaud );
 }
 
 
