@@ -46,7 +46,9 @@ Other *gpsctl* functions are specific to U-Blox GPS hardware:
 and enables NMEA version 4.1 output for Galileo
 * Queries the U-Blox GPS for position, time, GPS version, GPS configuration, and GPS satellite information.
   The format of query results are selectable: either plain English or JSON.
-* Tests the pulse-per-second output of the U-Blox GPS (fundamental for NTP).
+* Reports the U-Blox GPS' time pulse (PPS) settings: whether it is enabled, its frequency or period, its alignment
+  and polarity, and the antenna cable and RF group delays.  It does not measure the pulse itself;
+  use `ppstest` (from the `pps-tools` package) for that.
 * Configures the U-Blox GPS for maximum timing pulse accuracy (useful for building a stratum 1 NTP server
 based on the GPS' notion of time).
 * Disables NMEA RMC, VTG, GSA, GSV, GLL, GGA messages and enables ZDA (for NTP driver 20 mode 8)
