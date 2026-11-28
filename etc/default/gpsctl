@@ -1,1 +1,6 @@
+# Options for gpsctl, run by ublox-init.service at boot.  Examples (use one PARAMS line):
+#   PARAMS=-q --configure_for_timing
+#   PARAMS=-a -B 115200 --configure_for_timing       find the receiver (tried at 115200 first), keep it at 115200
+#   PARAMS=-a -M 9600 -X 115200 --configure_for_timing   only try rates from 9600 to 115200
+# -a (autobaud) tries 921600 down to 9600 unless -M/-X (or "autobaud minimum"/"autobaud maximum" in gpsctl.conf) narrow it
 PARAMS=-q --configure_for_timing

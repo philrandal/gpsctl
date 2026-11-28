@@ -79,6 +79,7 @@ struct clientData_slOptions {
     const char *port;
     int baud;
     int minBaud;
+    int maxBaud;
     int newbaud;
     bool report;
     bool echo;
@@ -935,6 +936,32 @@ static slReturn  constrainBaud(const optionDef_slOptions* defs, const psloConfig
 }
 
 
+// Maxbaud may only be specified if auto baud rate was specified...
+static slReturn  constrainMaxBaud(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    if (!hasShortOption_slOptions('a', state))
+        return makeErrorMsgReturn(ERR_ROOT, "-X, --maxbaud may only be specified if -a, --autobaud is also specified");
+
+    return makeOkReturn();
+}
+
+
+// The autobaud range must not be empty.  Either end may come from gpsctl.conf or from the command line, so say which...
+static slReturn  constrainBaudRange(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
+
+    if (!hasShortOption_slOptions('a', state))
+        return makeOkReturn();
+
+    const clientData_slOptions* cd = config->clientData;
+    if (cd->minBaud > cd->maxBaud)
+        return makeErrorFmtMsgReturn(ERR_ROOT, "the minimum autobaud rate (%d, from %s) is above the maximum (%d, from %s)",
+                cd->minBaud, hasShortOption_slOptions('M', state) ? "-M, --minbaud" : "gpsctl.conf or the default",
+                cd->maxBaud, hasShortOption_slOptions('X', state) ? "-X, --maxbaud" : "gpsctl.conf or the default");
+
+    return makeOkReturn();
+}
+
+
 // Minbaud may only be specified if auto baud rate was specified...
 static slReturn  constrainMinBaud(const optionDef_slOptions* defs, const psloConfig* config, const state_slOptions* state) {
 
@@ -1002,7 +1029,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     if (V2) printf("Automatically determining baud rate...\n");
 
     // now we set the correct options (the first baud rate, 8 data bits, 1 stop bit, no parity)
-    slReturn result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
+    slReturn result = setTermOptions(cd->fdPort, cd->maxBaud, 8, 1, false, false);
     if (isErrorReturn(result)) {
         close(cd->fdPort);
         cd->fdPort = -1;
@@ -1019,7 +1046,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     bool found = false;
     if (cd->syncMethod == syncUBX) {
         if (V2) printf("Listening for the receiver's NMEA output first (nothing is sent)...\n");
-        abResp = autoBaudRate(cd->fdPort, cd->minBaud, passiveBaudRateSynchronizer, cd->verbosity);
+        abResp = autoBaudRate(cd->fdPort, cd->minBaud, cd->maxBaud, cd->newbaud, passiveBaudRateSynchronizer, cd->verbosity);
         if (isOkReturn(abResp)) {
             // confirm with a poll, at what should now be the right rate...
             slReturn cfResp = ubxSynchronizer(cd->fdPort, 4000, cd->verbosity);
@@ -1039,7 +1066,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
         }
         if (!found) {
             // the passive pass leaves the port at some rate; start the polling sweep from the top again...
-            result = setTermOptions(cd->fdPort, 921600, 8, 1, false, false);
+            result = setTermOptions(cd->fdPort, cd->maxBaud, 8, 1, false, false);
             if (isErrorReturn(result)) {
                 close(cd->fdPort);
                 cd->fdPort = -1;
@@ -1050,7 +1077,7 @@ static slReturn actionAutoBaud(const optionDef_slOptions* defs, const psloConfig
     }
 
     // now we do the actual work (unless the passive pass already found the rate)...
-    if (!found) abResp = autoBaudRate(cd->fdPort, cd->minBaud, synchronizer, cd->verbosity);
+    if (!found) abResp = autoBaudRate(cd->fdPort, cd->minBaud, cd->maxBaud, cd->newbaud, synchronizer, cd->verbosity);
     if (isErrorReturn(abResp)) {
         close(cd->fdPort);
         cd->fdPort = -1;
@@ -1676,7 +1703,17 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             constrainMinBaud,                                                   // constrainer
             NULL,                                                               // action
             "baud rate",                                                        // argument name
-            "specify minimum baud rate for autobaud (default is '9600'); any standard rate is allowed"
+            "specify minimum baud rate for autobaud (default is '9600', or \"autobaud minimum\" in gpsctl.conf); any standard rate is allowed"
+    };
+
+
+    optionDef_slOptions maxBaudDef = {
+            1, "maxbaud", 'X', argRequired,                                     // max, long, short, arg
+            parseBaud, (void*) &clientData->maxBaud, 0,                         // parser, ptrArg, intArg
+            constrainMaxBaud,                                                   // constrainer
+            NULL,                                                               // action
+            "baud rate",                                                        // argument name
+            "specify maximum baud rate for autobaud (default is '921600', or \"autobaud maximum\" in gpsctl.conf); any standard rate is allowed"
     };
 
 
@@ -1686,7 +1723,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             NULL,                                                               // constrainer
             actionNewBaud,                                                      // action
             "baud rate",                                                        // argument name
-            "change the U-Blox and host baud rates to the specified standard rate"
+            "change the U-Blox and host baud rates to the specified standard rate (with -a, that rate is also tried first)"
     };
 
     optionDef_slOptions queryOptionDef = {
@@ -1781,6 +1818,7 @@ static optionDef_slOptions* getOptionDefs(clientData_slOptions* clientData) {
             autobaudDef,
             baudDef,
             minBaudDef,
+            maxBaudDef,
 
             // all the above MUST come before those below, or port won't be initialized correctly...
             syncDef,
@@ -1828,6 +1866,19 @@ static char* exampleText =
     "";
 
 
+// Reads a baud rate from the configuration: a whole number that is one of the standard rates (as the command line
+// requires).  Anything else is reported on stderr and the default is used...
+static int getConfigBaud(const char *key, int notfound) {
+    int baud = getConfigInt(key, notfound, 1, INT_MAX);
+    if (getBaudRateCookie(baud) < 0) {
+        fprintf(stderr, "Warning: %s = %d is not a valid baud rate (4800, 9600, 19200, etc.); using the default (%d)\n",
+                key, baud, notfound);
+        return notfound;
+    }
+    return baud;
+}
+
+
 // The entry point for gpsctl...
 int main(int argc, char *argv[]) {
     char *inifile = "/etc/gpsctl.conf";
@@ -1835,6 +1886,7 @@ int main(int argc, char *argv[]) {
     clientData_slOptions clientData = { 0 };
     clientData.baud = 0;            // triggers actionSetup to keep existing terminal options, including baud rate
     clientData.minBaud = 9600;
+    clientData.maxBaud = 921600;
     clientData.ubxSynchronized = false;
     clientData.port = NULL;
 
@@ -1847,12 +1899,14 @@ int main(int argc, char *argv[]) {
     }
     clientData.verbosity  = getConfigInt("gpsctl:verbosity", 1, INT_MIN, INT_MAX);               // (any int, but it must be a number)
     clientData.syncMethod = (syncType) getConfigInt("gpsctl:sync method", syncUBX, syncASCII, syncUBX);
+    clientData.minBaud = getConfigBaud("gpsctl:autobaud minimum", clientData.minBaud);
+    clientData.maxBaud = getConfigBaud("gpsctl:autobaud maximum", clientData.maxBaud);
     clientData.nmea =   getConfigBool("nmea:enabled", -1);
     // iniparser_dump_ini(gpsctlConf, stdout);
     psloConfig config = {
             getOptionDefs(&clientData),                         // our command-line option definitions...
             &clientData,                                        // our options processing data structure...
-            constrainNoExtras, NULL,                            // before, after constraint-checking functions...
+            constrainNoExtras, constrainBaudRange,              // before, after constraint-checking functions...
             actionSetup, actionTeardown,                        // before, after action functions.
             "gpsctl",                                           // name of gpsctl...
             GPSCTL_VER,                                         // version of gpsctl...
